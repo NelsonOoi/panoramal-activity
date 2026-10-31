@@ -76,6 +76,7 @@ Rules:
 - Describe people by their entity id (A, B, ...) and appearance as logged (clothing colours exactly as logged), what they did, and where they entered or left the frame.
 - In text, write times as HH:MM:SS, never raw milliseconds. Don't start a claim with its time (it is shown next to the claim).
 - Do not guess beyond the log. If the log is ambiguous, say so and lower the confidence.
+- Stay on the question: report the people and objects it is about and what they did. Leave out bystanders and background people unless they touched the object or the people involved.
 - 2 to 6 short claims (one sentence each), in time order. Confidence 0-1.`
 
 export async function witnessTestimony(camId: string, window: [number, number], ask: string, obs: Observation[]): Promise<Testimony> {
@@ -160,10 +161,27 @@ Rules:
 - Mark inferred=true for events nobody saw directly (e.g. a gap between an exit from one camera and an entry on another, or a blind spot); those still cite the claims on either side.
 - Timeline ids: if a previous timeline is given, REUSE its id for the same event (even if you now describe it differently) and only mint new ids (continuing the ti-N sequence) for genuinely new events. Otherwise use ti-1, ti-2, ...
 - When a new witness covers a gap, rewrite the matching inferred item as observed (same id, inferred=false) and cite the new witness.
-- Keep it tight: 5 to 10 timeline items, one short sentence each.
+- Focus ONLY on the question and the people and objects it is about. Ignore bystanders and background people unless they interacted with the object or the people involved. entityIds lists only the people the item is about.
+- Keep it tight: 3 to 6 timeline items, one short sentence each. Merge repeated sightings of the same action into one item.
+- Cite at most 2 frames per item: the clearest ones.
 - Contradictions: ONLY real factual conflicts between two cameras about the same fact (clothing colour, who did what, when). Left/right/entry side differ between cameras because they face different ways: that is NOT a contradiction. At most 2. When two cameras disagree, list it with the two claim texts, the two camIds, and a short neutral question to put to both cameras privately ("ask"). resolution: "" if unresolved; once cross-examination answers are given, write the resolution (which account is right and why, citing viewing conditions) and make the timeline reflect it. Contradiction ids: c-1, c-2 (reuse previous ids).
 - summary: one paragraph verdict, plain language, naming entity ids, cameras and times (HH:MM:SS).
 - guestNote: if a "new witness" is named, ONE sentence addressed to the guest ("your clip"), thanking them and saying concretely what their footage added (e.g. "Thanks — your clip covered the 15-second gap after cam-2's top exit."). Otherwise "".`
+
+// Paths shown to the investigator: people the cameras testified about, else the longest tracks.
+// In a crowded window the site tracks hundreds of passers-by; they are noise.
+function focusPaths(paths: IncidentState["paths"], testimonies: Testimony[], max = 12): IncidentState["paths"] {
+    const named = new Set(testimonies.flatMap(t => t.claims.flatMap(c => c.entityIds)))
+    const hit = paths.filter(p => named.has(p.entityId))
+    return (hit.length ? hit : [...paths].sort((a, b) => b.points.length - a.points.length)).slice(0, max)
+}
+
+// The case file's storyboard: only the people the timeline is about, most mentioned first.
+export function relevantPaths(paths: IncidentState["paths"], timeline: TimelineItem[], max = 3): IncidentState["paths"] {
+    const mentions = new Map<string, number>()
+    for (const i of timeline) for (const e of i.entityIds) mentions.set(e, (mentions.get(e) ?? 0) + 1)
+    return paths.filter(p => mentions.has(p.entityId)).sort((a, b) => mentions.get(b.entityId)! - mentions.get(a.entityId)!).slice(0, max)
+}
 
 export interface AnalysisInput {
     question: string
@@ -188,8 +206,9 @@ export async function analyse(input: AnalysisInput): Promise<AnalysisOutput> {
     const testimonyText = input.testimonies
         .map(t => `${t.camId}:\n` + (t.claims.length ? t.claims.map(c => `  - t=${c.t} [${clock(c.t)}] frame=${c.frameRef} conf=${c.confidence.toFixed(2)} entities=${c.entityIds.join(",") || "-"}: ${c.text}`).join("\n") : "  (saw nothing in the window)"))
         .join("\n")
-    const pathText = input.paths.length
-        ? input.paths.map(p => `${p.entityId} (${p.desc}): ` + p.points.map(pt => `${pt.camId}@${clock(pt.t)}${pt.inferred ? "(inferred gap)" : ""}`).join(" -> ")).join("\n")
+    const focused = focusPaths(input.paths, input.testimonies)
+    const pathText = focused.length
+        ? focused.map(p => `${p.entityId} (${p.desc}): ` + p.points.map(pt => `${pt.camId}@${clock(pt.t)}${pt.inferred ? "(inferred gap)" : ""}`).join(" -> ")).join("\n")
         : "(none tracked)"
     const layoutText = [
         ...input.layout.edges.map(e => `${e.from.camId}:${e.from.edge} -> ${e.to.camId}:${e.to.edge} (${e.transits.length} transits, typical ${e.transits.length ? Math.round(e.transits.reduce((a, b) => a + b, 0) / e.transits.length / 1000) : "?"}s)`),
@@ -228,7 +247,7 @@ export async function analyse(input: AnalysisInput): Promise<AnalysisOutput> {
         .filter((i: any) => i && typeof i.claim === "string")
         .map((i: any) => {
             const citations = (Array.isArray(i.citations) ? i.citations : []).map(fix).filter(Boolean) as TimelineItem["citations"]
-            const uniq = citations.filter((c, n) => citations.findIndex(d => d.frameRef === c.frameRef) === n)
+            const uniq = citations.filter((c, n) => citations.findIndex(d => d.frameRef === c.frameRef) === n).slice(0, 2)
             return { id: String(i.id), t: Number(i.t) || uniq[0]?.t || input.window[0], claim: String(i.claim), entityIds: (Array.isArray(i.entityIds) ? i.entityIds : []).map(String), citations: uniq, confidence: clamp01(i.confidence), inferred: !!i.inferred }
         })
         .sort((a, b) => a.t - b.t)

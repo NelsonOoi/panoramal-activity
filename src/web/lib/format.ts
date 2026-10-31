@@ -14,6 +14,16 @@ export function relative(t: number, now: number): string {
     return clock(t)
 }
 
+// "top: white t-shirt; bottom: blue jeans; head: short black hair; carrying: none" → "white t-shirt · blue jeans · short black hair"
+export function prettyDesc(desc: string): string {
+    if (!desc.includes(":")) return desc
+    const values = desc
+        .split(";")
+        .map(f => f.split(":").slice(1).join(":").trim())
+        .filter(v => v && !/^(unknown|none|nothing|n\/a)$/i.test(v))
+    return values.join(" · ") || desc
+}
+
 export function seconds(ms: number): string {
     const s = ms / 1000
     return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`

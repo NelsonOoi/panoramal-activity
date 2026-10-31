@@ -8,7 +8,7 @@ import { AgentRelay } from "@agent-relay/sdk"
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 
 import { actors } from "../generated/index.js"
-import { analyse, hasLLM, NoLLMError, resolveContradictions, witnessAsk, witnessReexamine, witnessTestimony, type AnalysisOutput, type ReexamineAnswer } from "./investigator.js"
+import { analyse, hasLLM, NoLLMError, relevantPaths, resolveContradictions, witnessAsk, witnessReexamine, witnessTestimony, type AnalysisOutput, type ReexamineAnswer } from "./investigator.js"
 import { publish } from "./publish.js"
 import type { Alert, AskResult, Claim, Contradiction, DashEvent, IncidentState, Observation, RelayCard, RelayKind, SiteEdge, BlindSpot, Testimony } from "./shared/types.js"
 
@@ -533,7 +533,7 @@ async function analyseAndFinalize(incId: string, newWitness?: string): Promise<{
 
     if (!hasLLM()) {
         warn(`${incId}: OPENAI_API_KEY missing: investigator offline`)
-        const r = await incident(incId).setResult({ timeline: inc.timeline, contradictions: inc.contradictions, paths, summary: "Investigator offline: no API key" })
+        const r = await incident(incId).setResult({ timeline: inc.timeline, contradictions: inc.contradictions, paths: relevantPaths(paths, inc.timeline), summary: "Investigator offline: no API key" })
         await publishIncident(incId, r.incident, r.changed)
         send("investigator", chan, { kind: "verdict", incId, summary: "Investigator offline: no API key" })
         return { changed: r.changed, output: null }
@@ -541,7 +541,7 @@ async function analyseAndFinalize(incId: string, newWitness?: string): Promise<{
 
     if (!testimonies.some(t => t.claims.length) && !inc.timeline.length) {
         const summary = "No camera answered before the deadline, so there is nothing to cite yet."
-        const r = await incident(incId).setResult({ timeline: [], contradictions: [], paths, summary })
+        const r = await incident(incId).setResult({ timeline: [], contradictions: [], paths: [], summary })
         await publishIncident(incId, r.incident, r.changed)
         send("investigator", chan, { kind: "verdict", incId, summary })
         return { changed: [], output: null }
@@ -554,13 +554,13 @@ async function analyseAndFinalize(incId: string, newWitness?: string): Promise<{
     } catch (e) {
         warn(`${incId}: analysis failed:`, errMsg(e))
         const summary = e instanceof NoLLMError ? "Investigator offline: no API key" : `Investigator error: ${errMsg(e)}`
-        const r = await incident(incId).setResult({ timeline: inc.timeline, contradictions: inc.contradictions, paths, summary })
+        const r = await incident(incId).setResult({ timeline: inc.timeline, contradictions: inc.contradictions, paths: relevantPaths(paths, inc.timeline), summary })
         await publishIncident(incId, r.incident, r.changed)
         send("investigator", chan, { kind: "verdict", incId, summary })
         return { changed: [], output: null }
     }
     const unresolved = out.contradictions.filter(c => !c.resolution).slice(0, 1) // one cross-examination round keeps the demo readable
-    let r = await incident(incId).setResult({ timeline: out.timeline, contradictions: strip(out.contradictions), paths, summary: out.summary, status: unresolved.length ? "analysing" : "done" })
+    let r = await incident(incId).setResult({ timeline: out.timeline, contradictions: strip(out.contradictions), paths: relevantPaths(paths, out.timeline), summary: out.summary, status: unresolved.length ? "analysing" : "done" })
     r.changed.forEach(id => allChanged.add(id))
     await publishIncident(incId, r.incident, r.changed)
 
@@ -574,7 +574,7 @@ async function analyseAndFinalize(incId: string, newWitness?: string): Promise<{
             const asks = new Map(out.contradictions.map(c => [c.id, c.ask]))
             out = { ...out, timeline: resolved.timeline, summary: resolved.summary, contradictions: resolved.contradictions.map(c => ({ ...c, ask: asks.get(c.id) ?? "" })) }
         } else warn(`${incId}: contradictions left unresolved (no answers or resolution failed)`)
-        r = await incident(incId).setResult({ timeline: out.timeline, contradictions: strip(out.contradictions), paths, summary: out.summary })
+        r = await incident(incId).setResult({ timeline: out.timeline, contradictions: strip(out.contradictions), paths: relevantPaths(paths, out.timeline), summary: out.summary })
         r.changed.forEach(id => allChanged.add(id))
         await publishIncident(incId, r.incident, r.changed)
     }

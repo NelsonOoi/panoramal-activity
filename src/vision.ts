@@ -8,7 +8,7 @@ const EMPTY: VisionResult = { people: [], objects: [], notable: null }
 const SYSTEM = "You are a security camera's vision module. You describe exactly what is visible in one frame and reply with JSON only."
 
 const SHAPE = `{
-  "people": [{ "id": string, "desc": string, "x": number, "y": number, "w": number, "h": number, "action": string }],
+  "people": [{ "id": string, "desc": "top: …; bottom: …; head: …; carrying: …", "x": number, "y": number, "w": number, "h": number, "action": string }],
   "objects": [{ "label": string, "x": number, "y": number, "heldBy"?: string }],
   "notable": string | null
 }`
@@ -19,7 +19,10 @@ export function buildPrompt(camId: string, known: { id: string; desc: string }[]
         `You are camera ${camId}. People seen recently (most recent first): {${knownStr}}.`,
         `For this frame, reply with a JSON object of exactly this shape:\n${SHAPE}`,
         `Reuse a known id if the person matches (same clothes/appearance); otherwise use "new".`,
-        `Each person: id, desc (short appearance: clothing colours, bag, hat), x, y, w, h (bounding box, 0–1 of the frame, x/y = top-left), action (a few words).`,
+        `Each person: id, desc, x, y, w, h (bounding box, 0–1 of the frame, x/y = top-left), action (a few words).`,
+        `desc MUST use exactly this lowercase format: "top: <colour> <garment>; bottom: <colour> <garment>|unknown; head: <hat or hair>; carrying: <bag/object>|none".`,
+        `Colours only from: black, white, grey, red, orange, yellow, green, blue, purple, pink, brown, beige, navy. Example: "top: white t-shirt; bottom: blue jeans; head: short black hair; carrying: black backpack".`,
+        `Only report people whose head or torso is clearly visible. Skip hands, arms and slivers of people at the frame edge.`,
         `Each object worth noting (bags, phones, boxes, laptops): label, x, y (centre, 0–1), heldBy (person id) if someone holds it.`,
         ...(labels.length ? [`Objects this camera has been tracking: ${labels.join(", ")}. Reuse exactly these labels for the same objects.`] : []),
         `Set "notable" to a short phrase only for meaningful events (picks up or puts down an object, falls, runs, enters a restricted area), else null.`,

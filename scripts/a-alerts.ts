@@ -31,7 +31,9 @@ ws.onmessage = e => {
 }
 await new Promise(r => (ws.onopen = r))
 
-const P = (id: string, x: number, w = 0.1) => ({ id, desc: `person ${id}`, x, y: 0.35, w, h: 0.4, action: "standing" })
+const COL = ["white", "black", "red", "green", "blue", "yellow", "purple", "orange", "pink", "brown"]
+const DESC = (id: string) => { const i = id.charCodeAt(0) - 65; return `top: ${COL[i % 10]} t-shirt; bottom: ${COL[(i + 3) % 10]} jeans; head: short hair; carrying: none` }
+const P = (id: string, x: number, w = 0.1) => ({ id, desc: DESC(id), x, y: 0.35, w, h: 0.4, action: "standing" })
 const table = { label: "table", x: 0.5, y: 0.75 }
 const f = (cam: string, people: any[], objects: any[], extra: Record<string, unknown> = {}) =>
     post("/api/debug/observe", { cam, t: Date.now(), people, objects, notable: null, ...extra })
@@ -40,7 +42,7 @@ const f = (cam: string, people: any[], objects: any[], extra: Record<string, unk
 //    Also a phone and a water bottle that vanish (never alert: not valuables).
 const tote = (x: number, heldBy?: string) => ({ label: "yellow tote", x, y: 0.62, ...(heldBy ? { heldBy } : {}) })
 const junk = [{ label: "phone", x: 0.2, y: 0.8 }, { label: "water bottle", x: 0.8, y: 0.8 }]
-await f(demo, [P("new", 0.05)], [tote(0.55), table, ...junk]); await sleep(1000) // A appears
+await f(demo, [P("A", 0.05)], [tote(0.55), table, ...junk]); await sleep(1000) // A appears
 for (let i = 0; i < 6; i++) { await f(demo, [P("A", 0.05)], [tote(0.55), table, ...junk]); await sleep(1000) }
 await f(demo, [P("A", 0.5)], [tote(0.55), table]); await sleep(1000) // A at the table (phone + bottle gone too)
 await f(demo, [P("A", 0.5)], [tote(0.55, "A"), table], { notable: "person A picks up the yellow tote" }); await sleep(1000)
@@ -56,19 +58,19 @@ log(`demo: object-gone ${gone ? `"${gone.text}" ${((gone.seenAt - tLeft) / 1000)
 // 2. NOISE on `noise`: a laptop; B stands in front of it for 5 frames (laptop not visible), then steps away.
 const laptop = { label: "laptop", x: 0.5, y: 0.55 }
 for (let i = 0; i < 7; i++) await f(noise, [], [laptop, table])
-for (let i = 0; i < 5; i++) await f(noise, [P(i ? "B" : "new", 0.42, 0.18)], [table]) // B's box covers the laptop
+for (let i = 0; i < 5; i++) await f(noise, [P("B", 0.42, 0.18)], [table]) // B's box covers the laptop
 for (let i = 0; i < 3; i++) await f(noise, [P("B", 0.05)], [laptop, table])
 for (let i = 0; i < 3; i++) await f(noise, [], [laptop, table])
 
 // 3. CROWD on `crowdCam`: 1 → 5 people for 3 frames (notify only), then a model notable within 20s (capped).
-for (let i = 0; i < 3; i++) await f(crowdCam, [P(i ? "C" : "new", 0.1)], [])
-const five = (pre: boolean) => [0, 1, 2, 3, 4].map(i => P(pre && i ? "new" : ["C", "D", "E", "F", "G"][i], 0.1 + i * 0.15, 0.08))
+for (let i = 0; i < 3; i++) await f(crowdCam, [P("C", 0.1)], [])
+const five = (_pre: boolean) => [0, 1, 2, 3, 4].map(i => P(["C", "D", "E", "F", "G"][i], 0.1 + i * 0.15, 0.08))
 await f(crowdCam, five(true), [])
 for (let i = 0; i < 2; i++) await f(crowdCam, five(false), [])
 await f(crowdCam, five(false), [], { notable: "people gather" })
 
 // 4. OBJECT-LEFT on `leftCam`: a backpack appears after the opening scene and nobody is near it for 5 frames.
-for (let i = 0; i < 4; i++) await f(leftCam, [P(i ? "H" : "new", 0.05)], [table])
+for (let i = 0; i < 4; i++) await f(leftCam, [P("H", 0.05)], [table])
 for (let i = 0; i < 5; i++) await f(leftCam, [P("H", 0.05)], [table, { label: "backpack", x: 0.85, y: 0.8 }])
 
 // 5. TAMPER (phone sends &tamper=covered after 3s dark/flat)

@@ -186,6 +186,17 @@ export interface AskResult {
     claims: Claim[] // cited moments from its memory
 }
 
+// A short video clip a camera phone uploaded from its rolling buffer (requested on alerts and new incidents).
+export interface Clip {
+    id: string // "clip-<camId>-<t0>"
+    camId: string
+    t0: number // site time, ms
+    t1: number
+    url: string // "/frames/<camId>/clip-<t0>.webm" (or .mp4 from iOS)
+    mime: string // "video/webm" | "video/mp4"
+    reason: string // "alert al-3" | "incident inc-4"
+}
+
 // Everything the dashboard receives over its one websocket (SiteActor "site").
 export type DashEvent =
     | { type: "snapshot"; site: SiteSnapshot }
@@ -198,13 +209,16 @@ export type DashEvent =
     | { type: "relay"; card: RelayCard }
     | { type: "knock"; knock: Knock }
     | { type: "incident"; incident: IncidentState; changed: string[] } // changed = timeline item ids in this revision
+    | { type: "clip"; clip: Clip }
 
 // HTTP API (src/server.ts). Phones go through the tunnel; the dashboard runs on localhost.
 //   GET  /api/config                  → { publicUrl, epoch }   (epoch changes on every wipe)
 //   GET  /api/time                    → { t }
 //   POST /api/cameras                 → CameraMeta              (registers a new fixed camera)
 //   POST /api/cameras/:id/move        { pos, facing } → CameraMeta
-//   POST /api/ingest?cam=&t=          body: image/jpeg → { ok }
+//   POST /api/ingest?cam=&t=          body: image/jpeg → { ok, clip?: { reason } }  (clip set = upload your video buffer now)
+//   POST /api/clips?cam=&t0=&t1=&reason=   body: video/webm | video/mp4 → Clip   (also broadcasts { type: "clip" })
+//   GET  /api/clips?t0=&t1=&cam=      → Clip[]   (overlapping the window; cam optional)
 //   POST /api/socket/site             → { websocketUrl }        (Terse prepareWebsocket grant)
 //   POST /api/site/wipe               → { ok }   (FULL reset incl. cameras + frames; phones must reload)
 //   POST /api/site/reset              → { ok }   (keeps cameras + positions; clears edges, blind spots,

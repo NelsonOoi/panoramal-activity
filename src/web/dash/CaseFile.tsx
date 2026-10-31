@@ -1,7 +1,9 @@
-import { Fragment } from "react"
-import type { IncidentState, PathPoint } from "../../shared/types"
-import { clock, seconds } from "../lib/format"
-import { Badge, Card, CardContent, CardHeader, Label, Panel, Skeleton, cn } from "../ui"
+import { Fragment, useEffect, useMemo, useState } from "react"
+import type { Clip, IncidentState, PathPoint } from "../../shared/types"
+import { getClips } from "../lib/api"
+import { mergeClips, overlaps } from "../lib/store"
+import { clock, prettyDesc, seconds } from "../lib/format"
+import { Badge, Button, Card, CardContent, CardHeader, ClipCard, Label, Panel, Skeleton, cn } from "../ui"
 import { CitationChip, useDash } from "./ctx"
 import { Thumb } from "./frame"
 
@@ -11,7 +13,7 @@ const STATUS: Record<IncidentState["status"], { label: string; variant: "outline
     done: { label: "Complete", variant: "outline" }
 }
 
-export function CaseFile({ incident, className }: { incident: IncidentState | null; className?: string }) {
+export function CaseFile({ incident, clips = [], className }: { incident: IncidentState | null; clips?: Clip[]; className?: string }) {
     if (!incident)
         return (
             <Card className={className}>
@@ -61,13 +63,15 @@ export function CaseFile({ incident, className }: { incident: IncidentState | nu
                     <Panel key={p.entityId}>
                         <div className="mb-2.5 flex items-center justify-between gap-2">
                             <Label className="truncate">
-                                {p.entityId} · {p.desc}
+                                {p.entityId} · {prettyDesc(p.desc)}
                             </Label>
                             <span className="text-[13px] text-muted-fg">Storyboard</span>
                         </div>
                         <Storyboard points={p.points} windowEnd={inc.window[1]} />
                     </Panel>
                 ))}
+
+                <IncidentClips incId={inc.id} window={inc.window} live={clips} />
 
                 {inc.timeline.length > 0 && (
                     <div className="flex flex-col gap-3">
@@ -125,6 +129,45 @@ export function CaseFile({ incident, className }: { incident: IncidentState | nu
                 )}
             </CardContent>
         </Card>
+    )
+}
+
+const CLIPS_SHOWN = 4
+
+// Clips overlapping the incident window: fetched once per incident/window, merged with live clip events.
+function IncidentClips({ incId, window, live }: { incId: string; window: [number, number]; live: Clip[] }) {
+    const [t0, t1] = window
+    const [fetched, setFetched] = useState<Clip[]>([])
+    const [all, setAll] = useState(false)
+    useEffect(() => {
+        let ok = true
+        setFetched([])
+        setAll(false)
+        getClips(t0, t1).then(c => ok && setFetched(c))
+        return () => {
+            ok = false
+        }
+    }, [incId, t0, t1])
+    const list = useMemo(() => mergeClips(fetched, live).filter(c => overlaps(c, t0, t1)), [fetched, live, t0, t1])
+    if (!list.length) return null
+    const shown = all ? list : list.slice(0, CLIPS_SHOWN)
+    return (
+        <Panel>
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+                <Label>Clips</Label>
+                <span className="text-[13px] text-muted-fg">{list.length === 1 ? "1 clip" : `${list.length} clips`}</span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+                {shown.map(c => (
+                    <ClipCard key={c.id} clip={c} />
+                ))}
+            </div>
+            {list.length > CLIPS_SHOWN && (
+                <Button variant="ghost" size="sm" className="mt-2 -ml-2" onClick={() => setAll(v => !v)}>
+                    {all ? "Show fewer" : `Show all ${list.length}`}
+                </Button>
+            )}
+        </Panel>
     )
 }
 

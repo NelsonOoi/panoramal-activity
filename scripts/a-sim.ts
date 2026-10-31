@@ -34,10 +34,18 @@ ws.onmessage = e => {
 }
 await new Promise(r => (ws.onopen = r))
 
-type P = { id: string; at: "c" | "l" | "r" | "t" }
+type P = { id: string; at: "c" | "l" | "r" | "r2" | "t" }
+const DESC: Record<string, string> = {
+    A: "top: red hoodie; bottom: blue jeans; head: short black hair; carrying: black backpack",
+    B: "top: green jacket; bottom: black trousers; head: grey beanie; carrying: none",
+    C: "top: yellow t-shirt; bottom: brown shorts; head: blonde hair; carrying: none",
+    D: "top: purple sweater; bottom: grey trousers; head: red cap; carrying: none",
+    E: "top: orange shirt; bottom: white trousers; head: bald; carrying: blue bag",
+    F: "top: pink blouse; bottom: navy skirt; head: long brown hair; carrying: none"
+}
 const box = (p: P) => {
-    const pos = { c: [0.45, 0.35, 0.3], l: [0.02, 0.35, 0.3], r: [0.86, 0.35, 0.3], t: [0.45, 0.0, 0.2] }[p.at]
-    return { id: p.id, desc: `person ${p.id}`, x: pos[0], y: pos[1], w: 0.1, h: pos[2], action: "walking" }
+    const pos = { c: [0.4, 0.35, 0.3], l: [0.0, 0.35, 0.3], r: [0.84, 0.1, 0.3], r2: [0.84, 0.6, 0.3], t: [0.4, 0.0, 0.2] }[p.at]
+    return { id: p.id, desc: DESC[p.id], x: pos[0], y: pos[1], w: 0.16, h: pos[2], action: "walking" }
 }
 // One frame on both cameras, then 0.8s.
 const step = async (a: P[], b: P[]) => {
@@ -47,11 +55,11 @@ const step = async (a: P[], b: P[]) => {
     await sleep(800)
 }
 // First appearance uses "new"; the site assigns A, B, C… in order of first appearance.
-const N = (at: P["at"]): P => ({ id: "new", at })
+const N = (id: string, at: P["at"]): P => ({ id, at }) // first appearance (ids are assigned server-side anyway)
 const I = (id: string, at: P["at"]): P => ({ id, at })
 
 // 2. edge
-await step([N("c")], [])               // A
+await step([N("A", "c")], [])               // A
 await step([I("A", "r")], [])
 await step([], [])
 await step([], [I("A", "l")])          // cam-1 2nd miss → exit A right; cam-2 sees A once (not yet entered)
@@ -60,23 +68,23 @@ await step([], [I("A", "l")])          // entered → matches → edge
 await step([], [I("A", "t")])
 await step([], [])
 await step([], [])                     // exit A top
-await step([], [N("t")])               // B
+await step([], [N("B", "t")])               // B
 await step([], [I("B", "t")])
 await step([], [])
 await step([], [])                     // exit B top
-await step([], [N("t")])               // C
+await step([], [N("C", "t")])               // C
 await step([], [I("C", "t")])
 await step([], [])
 await step([], [])                     // exit C top
 // 4. crowd: D and E leave cam-1 together, then D shows up on cam-2
-await step([N("r"), N("r")], [])       // D, E
-await step([I("D", "r"), I("E", "r")], [])
+await step([N("D", "r"), N("E", "r2")], [])       // D, E
+await step([I("D", "r"), I("E", "r2")], [])
 await step([], [])
 await step([], [])                     // both exit right within 2s → ignored
 await step([], [I("D", "l")])
 await step([], [I("D", "l")])          // D entered cam-2: must NOT learn a transit
 // 5. center fade-out
-await step([N("c")], [])               // F
+await step([N("F", "c")], [])               // F
 await step([I("F", "c")], [])
 await step([], [])
 await step([], [])                     // exit F center → ignored

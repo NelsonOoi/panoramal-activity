@@ -88,6 +88,12 @@ export function buildMock(t0 = Date.now()): Recorded[] {
     }
     card(32400, { kind: "alert", from: "cam-2", to: "#site", text: "Yellow tote is gone from the table." })
 
+    // cam-2 uploads a short clip from its rolling buffer around the alert (tiny generated test video).
+    at(33200, {
+        type: "clip",
+        clip: { id: `clip-cam-2-${T(26800)}`, camId: "cam-2", t0: T(26800), t1: T(36800), url: "/mock-frames/cam-2-clip.webm", mime: "video/webm", reason: `alert ${alertId}` }
+    })
+
     // Incident opens.
     const window: [number, number] = [T(31800 - 30000), T(31800 + 15000)]
     const q = "Who took the yellow tote?"

@@ -12,6 +12,12 @@ for (const [token, list] of Object.entries({
     phone: "phone mobile smartphone cellphone",
     laptop: "laptop computer notebook macbook",
     box: "box package parcel",
+    // clothing (for appearance re-ID)
+    shirt: "shirt tee tshirt top blouse polo",
+    hoodie: "hoodie hoody sweatshirt jumper sweater pullover fleece",
+    jacket: "jacket coat blazer parka windbreaker",
+    trousers: "trousers pants jeans chinos slacks joggers leggings",
+    hat: "hat cap beanie",
     leave: "leave leaves left exit exits"
 })) for (const w of list.split(" ")) SYN[w] = token
 

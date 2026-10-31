@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { RotateCcw } from "lucide-react"
-import type { AskResult, CameraMeta, Observation, Person } from "../../shared/types"
-import { clock } from "../lib/format"
-import { Badge, Button, Dialog, DialogHeader, Input, Label, Panel, Skeleton, cn } from "../ui"
+import type { AskResult, CameraMeta, Clip, Observation, Person } from "../../shared/types"
+import { getClips } from "../lib/api"
+import { clock, prettyDesc } from "../lib/format"
+import { mergeClips } from "../lib/store"
+import { Badge, Button, ClipCard, Dialog, DialogHeader, Input, Label, Panel, Skeleton, clipDomId, cn } from "../ui"
 import { type FrameAt, CitationChip, statusOf } from "./ctx"
 import { Scene, Thumb, useSidecar } from "./frame"
 
@@ -26,7 +28,7 @@ const sig = (o: Observation) =>
         .sort()
         .join(",") + `|${o.notable ?? ""}`
 
-const describe = (o: Observation) => (o.people.length ? o.people.map(p => `${p.id} · ${p.action || p.desc}`).join("; ") : "Nobody in view")
+const describe = (o: Observation) => (o.people.length ? o.people.map(p => `${p.id} · ${p.action || prettyDesc(p.desc)}`).join("; ") : "Nobody in view")
 
 // Newest first; consecutive frames with the same people (ids + actions) and notable fold into one row.
 function collapse(obs: Observation[]): Run[] {
@@ -45,23 +47,39 @@ export function CameraView({
     camera,
     at,
     lastN,
+    clips = [],
     api,
     onClose
 }: {
     camera: CameraMeta | null
     at?: FrameAt
     lastN: number // bumps on each new observation for this camera
+    clips?: Clip[]
     api: CameraApi
     onClose: () => void
 }) {
     return (
         <Dialog open={!!camera} onClose={onClose} labelledBy="cam-title">
-            {camera && <Body key={camera.id} camera={camera} at={at} lastN={lastN} api={api} onClose={onClose} />}
+            {camera && <Body key={camera.id} camera={camera} at={at} lastN={lastN} clips={clips} api={api} onClose={onClose} />}
         </Dialog>
     )
 }
 
-function Body({ camera, at, lastN, api, onClose }: { camera: CameraMeta; at?: FrameAt; lastN: number; api: CameraApi; onClose: () => void }) {
+const CAM_CLIPS = 3
+
+function playClip(c: Clip, t: number) {
+    const el = document.getElementById(clipDomId(c))
+    if (!el) return
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    const v = el.querySelector("video")
+    if (!v) return
+    try {
+        v.currentTime = Math.max(0, (t - c.t0) / 1000)
+    } catch {}
+    v.play().catch(() => {})
+}
+
+function Body({ camera, at, lastN, clips, api, onClose }: { camera: CameraMeta; at?: FrameAt; lastN: number; clips: Clip[]; api: CameraApi; onClose: () => void }) {
     const [obs, setObs] = useState<Observation[] | null>(null)
     const [loadErr, setLoadErr] = useState(false)
     const [sel, setSel] = useState<FrameAt | null>(at ?? null)
@@ -90,6 +108,17 @@ function Body({ camera, at, lastN, api, onClose }: { camera: CameraMeta; at?: Fr
     }, [camera.id, tick])
     void lastN
 
+    // This camera's clips: fetched once when opened, merged with live clip events.
+    const [fetchedClips, setFetchedClips] = useState<Clip[]>([])
+    useEffect(() => {
+        let live = true
+        getClips(0, Date.now() + 86_400_000, camera.id).then(c => live && setFetchedClips(c))
+        return () => {
+            live = false
+        }
+    }, [camera.id])
+    const camClips = useMemo(() => mergeClips(fetchedClips, clips).filter(c => c.camId === camera.id), [fetchedClips, clips, camera.id])
+
     const runs = useMemo(() => collapse(obs ?? []), [obs])
     const latest = obs?.[0]
     const shown: FrameAt | null = sel ?? (latest ? { t: latest.t, frameRef: latest.frameRef } : null)
@@ -100,6 +129,9 @@ function Body({ camera, at, lastN, api, onClose }: { camera: CameraMeta; at?: Fr
     const notable = obs?.find(o => o.notable)
     const st = statusOf(camera)
     const off = !camera.online && camera.kind !== "upload"
+    const frameClip = shown ? camClips.find(c => shown.t >= c.t0 && shown.t <= c.t1) : undefined
+    let visibleClips = camClips.slice(0, CAM_CLIPS)
+    if (frameClip && !visibleClips.includes(frameClip)) visibleClips = [...visibleClips.slice(0, CAM_CLIPS - 1), frameClip]
 
     return (
         <>
@@ -115,7 +147,18 @@ function Body({ camera, at, lastN, api, onClose }: { camera: CameraMeta; at?: Fr
                     <Scene frameRef={shown?.frameRef} people={people} className="max-h-[60vh] w-full" dim={off && isLatest} empty={loadErr ? "Memory unavailable" : obs ? "No frames yet" : "Loading…"} />
                     <div className="flex items-center justify-between">
                         <Label>Frame</Label>
-                        <span className="font-mono text-xs text-muted-fg">{shown ? `${clock(shown.t)}${isLatest ? " · latest" : ""}` : ""}</span>
+                        <span className="flex items-center gap-2">
+                            {frameClip && shown && (
+                                <button
+                                    type="button"
+                                    onClick={() => playClip(frameClip, shown.t)}
+                                    className="cursor-pointer rounded-md px-1.5 text-[13px] text-muted-fg underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                                >
+                                    Play clip
+                                </button>
+                            )}
+                            <span className="font-mono text-xs text-muted-fg">{shown ? `${clock(shown.t)}${isLatest ? " · latest" : ""}` : ""}</span>
+                        </span>
                     </div>
                     <Ask camId={camera.id} api={api} />
                 </div>
@@ -128,7 +171,7 @@ function Body({ camera, at, lastN, api, onClose }: { camera: CameraMeta; at?: Fr
                                     <div key={`${p.id}-${i}`} className="flex items-start gap-2">
                                         <Badge>{p.id}</Badge>
                                         <div className="min-w-0">
-                                            <div>{p.desc}</div>
+                                            <div>{prettyDesc(p.desc)}</div>
                                             <div className="text-[13px] text-muted-fg">{p.action}</div>
                                         </div>
                                     </div>
@@ -190,6 +233,19 @@ function Body({ camera, at, lastN, api, onClose }: { camera: CameraMeta; at?: Fr
                             })}
                         </div>
                     </Panel>
+                    {visibleClips.length > 0 && (
+                        <Panel>
+                            <div className="mb-2 flex items-center justify-between">
+                                <Label>Clips</Label>
+                                <span className="text-[13px] text-muted-fg">Newest first</span>
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                {visibleClips.map(c => (
+                                    <ClipCard key={c.id} clip={c} />
+                                ))}
+                            </div>
+                        </Panel>
+                    )}
                 </div>
             </div>
         </>

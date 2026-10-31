@@ -1,3 +1,5 @@
+import type { Clip } from "../../shared/types"
+
 // Thin HTTP helpers. In replay/mock mode, actions are no-ops so a recorded run can't touch the live site.
 let inert = false
 export function setInert(v: boolean) {
@@ -46,4 +48,17 @@ export function getConfig(): Promise<{ publicUrl: string }> {
             .catch(() => ({ publicUrl: location.origin }))
     }
     return configPromise
+}
+
+// Clips overlapping [t0, t1] (optionally one camera). Inert or failing → [] so mock/replay relies on clip events.
+export async function getClips(t0: number, t1: number, cam?: string): Promise<Clip[]> {
+    if (inert) return []
+    const q = new URLSearchParams({ t0: String(Math.floor(t0)), t1: String(Math.ceil(t1)) })
+    if (cam) q.set("cam", cam)
+    try {
+        const r = await getJSON<Clip[]>(`/api/clips?${q}`)
+        return Array.isArray(r) ? r : []
+    } catch {
+        return []
+    }
 }

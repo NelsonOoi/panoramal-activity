@@ -1,0 +1,12 @@
+import { actors } from "../generated/index.js"
+const site = actors.SiteActor.get("site")
+const s = await site.snapshot()
+console.log("cameras:", s.cameras.map(c => `${c.id}(${c.observations} obs)`).join(" "))
+console.log("entities:", s.entities.length)
+for (const e of s.entities.slice(0, 30)) console.log(`  ${e.id}: ${e.desc}`)
+const paths = await site.paths(Date.now() - 30 * 60_000, Date.now())
+const multi = paths.filter(p => new Set(p.points.map(x => x.camId)).size > 1)
+console.log("paths:", paths.length, "| crossing cameras:", multi.length)
+for (const p of paths.slice(0, 15)) console.log(`  ${p.entityId} (${p.desc}): ${p.points.map(x => x.camId).join(" → ")}`)
+console.log("edges:", s.edges.map(e => `${e.id} x${e.transits.length}`).join(", ") || "none")
+process.exit(0)

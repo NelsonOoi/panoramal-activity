@@ -1,7 +1,7 @@
 // App server: Express API + Vite middleware on :3000. Owner: track A.
 import express from "express"
 import { existsSync } from "node:fs"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { createServer as createHttpServer } from "node:http"
 
 import { actors } from "../generated/index.js"
@@ -10,7 +10,8 @@ import { alignOffset } from "./align.js"
 import { publish } from "./publish.js"
 import * as relay from "./relay.js"
 import { admitWitness, ensureCameraAgent, postAlert, runInvestigation, sendKnock, startRelay } from "./relay.js"
-import type { Alert, AlertKind, AskResult, CameraMeta, Knock, Observation, Sighting, VisionResult } from "./shared/types.js"
+import type { Alert, AlertKind, AskResult, CameraMeta, Clip, Knock, Observation, Person, Sighting, VisionResult } from "./shared/types.js"
+import { assignIds, dedupe, isFragment } from "./track.js"
 import { describeFrame } from "./vision.js"
 
 const PORT = Number(process.env.PORT ?? 3000)
@@ -71,6 +72,9 @@ async function isKnownCam(id: string): Promise<boolean> {
     return knownCams.has(id)
 }
 
+// Each camera's tracked people in its last 2 analysed frames (newest first), for within-camera tracking.
+const trackFrames = new Map<string, Person[][]>()
+
 // Last vision result per camera (entity ids already resolved), reused for heartbeat frames.
 const lastVision = new Map<string, VisionResult>()
 
@@ -92,15 +96,27 @@ async function raiseAlert(input: { camId: string; t: number; text: string; frame
     const alert = await site().createAlert(input) // the actor broadcasts { type: "alert" }
     if (!alert) return
     console.log(`[alert ${alert.id}] ${alert.kind} on ${alert.camId}: "${alert.text}" (escalates in 30s)`)
+    if (CLIP_ALERT_KINDS.has(alert.kind) && alert.t >= Date.now() - CLIP_RECENT_MS) requestClip(alert.camId, `alert ${alert.id}`)
     bg("postAlert", postAlert(alert))
     if (AUTO_INVESTIGATE) bg("auto-incident", openIncident({ alertId: alert.id }))
 }
 
 async function processVision(camId: string, t: number, frameRef: string, vision: VisionResult, opts: FrameOpts) {
     const s = site()
-    const people = await s.resolveEntities(vision.people)
-    const obs: Observation = { camId, t, frameRef, people, objects: vision.objects, notable: vision.notable }
-    lastVision.set(camId, { people, objects: vision.objects, notable: null })
+    let raw = vision.people
+    let objects = vision.objects
+    if (!opts.heartbeat) {
+        // Heartbeat copies already carry assigned ids; real frames go through fragment filter, dedupe and tracking.
+        const kept = dedupe(raw.filter(p => !isFragment(p)))
+        const recent = await s.recentEntities(120_000, 50)
+        const tracked = assignIds(kept, trackFrames.get(camId) ?? [], recent)
+        raw = tracked.people
+        objects = objects.map(o => (o.heldBy && tracked.idMap[o.heldBy] ? { ...o, heldBy: tracked.idMap[o.heldBy] } : o))
+    }
+    const people = await s.resolveEntities(raw)
+    if (!opts.heartbeat) trackFrames.set(camId, [people, ...(trackFrames.get(camId) ?? [])].slice(0, 2))
+    const obs: Observation = { camId, t, frameRef, people, objects, notable: vision.notable }
+    lastVision.set(camId, { people, objects, notable: null })
     // Sidecar for the dashboard's frame dialog, which draws these boxes over the keyframe.
     const sidecar = `.${frameRef.replace(/\.jpg$/, ".json")}`
     bg("frame-sidecar", mkdir(sidecar.slice(0, sidecar.lastIndexOf("/")), { recursive: true }).then(() => writeFile(sidecar, JSON.stringify({ people }))))
@@ -129,6 +145,29 @@ async function processFrame(camId: string, t: number, frameRef: string, jpeg: Bu
     const vision = await describeFrame(camId, jpeg, known, labels)
     await processVision(camId, t, frameRef, vision, opts)
 }
+
+// ---------- incident video clips ----------
+// Phones keep a rolling buffer (2 × 10s segments). We ask for it via the next /api/ingest response.
+
+const clipRequests = new Map<string, string>() // camId → reason
+const CLIP_RECENT_MS = 60_000 // only ask when the window ended within the last 60s (older footage is gone)
+const CLIP_ALERT_KINDS = new Set<AlertKind>(["object-gone", "object-left", "tamper"])
+const CLIPS_FILE = "frames/clips.json"
+let clips: Clip[] = []
+
+function requestClip(camId: string, reason: string) {
+    if (clipRequests.has(camId)) return
+    clipRequests.set(camId, reason)
+    console.log(`[clip] requested from ${camId} (${reason})`)
+}
+
+async function loadClips() {
+    try {
+        const raw = JSON.parse(await readFile(CLIPS_FILE, "utf8"))
+        if (Array.isArray(raw)) clips = raw
+    } catch {}
+}
+const saveClips = () => bg("clips.json", mkdir("frames", { recursive: true }).then(() => writeFile(CLIPS_FILE, JSON.stringify(clips))))
 
 // ---------- incidents ----------
 
@@ -163,6 +202,9 @@ async function openIncident(body: {
             if (c.online || (await cam(c.id).recall(window[0], window[1])).length > 0) camIds.push(c.id)
         }
         const incident = await retrying(actors.IncidentActor.get(incId)).open(question, window, camIds)
+        if (window[1] >= Date.now() - CLIP_RECENT_MS) {
+            for (const c of cams) if (c.online && c.kind === "fixed" && camIds.includes(c.id)) requestClip(c.id, `incident ${incId}`)
+        }
         await publish({ type: "incident", incident, changed: [] })
         bg("runInvestigation", runInvestigation(incId))
     }
@@ -252,12 +294,62 @@ app.post("/api/ingest", jpegBody, route(async (req, res) => {
     if (!camId || !Buffer.isBuffer(jpeg) || !jpeg.length) return res.status(400).json({ error: "need ?cam= and a JPEG body" })
     if (!(await isKnownCam(camId))) return res.status(404).json({ error: "unknown camera", camId })
     const q = queues.get(camId)
-    if (q && q.pending > 2) return res.json({ ok: true, dropped: true })
+    if (q && q.pending > 2) {
+        const reason = clipRequests.get(camId)
+        if (reason !== undefined) clipRequests.delete(camId)
+        return res.json(reason !== undefined ? { ok: true, dropped: true, clip: { reason } } : { ok: true, dropped: true })
+    }
     const frameRef = await saveFrame(camId, t, jpeg)
-    res.json({ ok: true })
+    const reason = clipRequests.get(camId)
+    if (reason !== undefined) clipRequests.delete(camId)
+    res.json(reason !== undefined ? { ok: true, clip: { reason } } : { ok: true })
     const heartbeat = req.query.hb === "1"
     const tamper = req.query.tamper === "covered" ? "covered" : undefined // "moved" was removed (too noisy)
     enqueue(camId, () => processFrame(camId, t, frameRef, jpeg, { guest: false, heartbeat, tamper }))
+}))
+
+// ---------- clips ----------
+
+const videoBody = express.raw({ type: ["video/*", "application/octet-stream"], limit: "50mb" })
+
+app.post("/api/clips", videoBody, route(async (req, res) => {
+    const camId = String(req.query.cam ?? "")
+    const t0 = Math.round(Number(req.query.t0))
+    const t1 = Math.round(Number(req.query.t1))
+    const body = req.body as Buffer
+    if (!/^[\w-]+$/.test(camId) || !isFinite(t0) || !isFinite(t1) || !Buffer.isBuffer(body) || !body.length)
+        return res.status(400).json({ error: "need ?cam=&t0=&t1= and a video body" })
+    if (!(await isKnownCam(camId))) return res.status(404).json({ error: "unknown camera", camId })
+    const mp4 = /mp4|quicktime/i.test(String(req.headers["content-type"] ?? ""))
+    const ext = mp4 ? "mp4" : "webm"
+    await mkdir(`frames/${camId}`, { recursive: true })
+    await writeFile(`frames/${camId}/clip-${t0}.${ext}`, body)
+    const clip: Clip = {
+        id: `clip-${camId}-${t0}`, camId, t0, t1,
+        url: `/frames/${camId}/clip-${t0}.${ext}`,
+        mime: mp4 ? "video/mp4" : "video/webm",
+        reason: String(req.query.reason ?? "")
+    }
+    clips = [...clips.filter(c => c.id !== clip.id), clip]
+    saveClips()
+    await publish({ type: "clip", clip })
+    console.log(`[clip] ${clip.id} ${Math.round(body.length / 1024)}KB ${Math.round((t1 - t0) / 1000)}s (${clip.reason || "no reason"})`)
+    res.json(clip)
+}))
+
+app.get("/api/clips", route(async (req, res) => {
+    const t1 = Number(req.query.t1) || Date.now()
+    const t0 = Number(req.query.t0) || t1 - 60 * 60_000
+    const camId = req.query.cam ? String(req.query.cam) : null
+    res.json(clips.filter(c => c.t1 >= t0 && c.t0 <= t1 && (!camId || c.camId === camId)).sort((a, b) => b.t0 - a.t0))
+}))
+
+// Test-only: make the camera's next ingest response ask for its video buffer.
+app.post("/api/debug/clip", route(async (req, res) => {
+    const camId = String(req.query.cam ?? "")
+    if (!camId) return res.status(400).json({ error: "need ?cam=" })
+    requestClip(camId, String(req.query.reason ?? "debug"))
+    res.json({ ok: true })
 }))
 
 // Dev/test hook: run the pipeline with a synthetic vision result (no image, no LLM).
@@ -298,7 +390,10 @@ app.post("/api/site/wipe", route(async (_req, res) => {
     await s.wipe()
     knownCams.clear()
     lastVision.clear()
+    trackFrames.clear()
     queues.clear()
+    clipRequests.clear()
+    clips = []
     await rm("frames", { recursive: true, force: true })
     await mkdir("frames", { recursive: true })
     await publish({ type: "layout-reset" })
@@ -396,6 +491,7 @@ app.post("/api/knock/:guestId", json, route(async (req, res) => {
 }))
 
 // Stored keyframes.
+// express.static (send) handles Range requests, so <video> can seek clips; .webm/.mp4 get video/* types.
 app.use("/frames", express.static("frames", { maxAge: "1h", fallthrough: false }))
 app.use("/api", (_req, res) => { res.status(404).json({ error: "not found" }) })
 
@@ -434,6 +530,7 @@ setInterval(async () => {
 }, 2000)
 
 ;(async () => {
+    await loadClips()
     try {
         await startRelay()
         console.log("[relay] started")

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { Person } from "../../shared/types"
 import { cn } from "../ui"
+import { prettyDesc } from "../lib/format"
 
 // Sidecar next to each stored frame: /frames/<cam>/<t>.json → { people }.
 const sidecars = new Map<string, Promise<Person[] | null>>()
@@ -121,7 +122,7 @@ export function Scene({
                                         p.y < 0.08 ? "top-0" : "top-[-21px]"
                                     )}
                                 >
-                                    {p.id} · {p.desc}
+                                    {p.id} · {prettyDesc(p.desc)}
                                 </span>
                             )}
                         </div>

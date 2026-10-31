@@ -69,11 +69,14 @@ function goneCheck(label: string, t: ObjTrack, people: Observation["people"], al
     const before = t.hist.slice(0, t.hist.length - trailing).slice(-GONE_BEFORE)
     if (before.length < GONE_BEFORE || [...before].filter(c => c === "1").length < GONE_BEFORE_MIN) return t
     if (people.some(p => distToPerson(t, p) <= 0.02)) return t // occluded
-    const where = t.near ? ` from the ${t.near}` : ""
+    const where = t.near && SURFACE.test(t.near) ? ` from the ${t.near}` : "" // only name where it stood, never another object
     const who = t.heldBy ? ` (last held by ${t.heldBy})` : ""
     alerts.push({ kind: "object-gone", text: `${cap(label)} is gone${where}${who}` })
     return { ...t, firedGone: true }
 }
+
+// Surfaces an object can be taken from; "gone from the phone" made no sense.
+const SURFACE = /\b(table|desk|counter|shelf|bench|chair|floor|cabinet|cart|stand|bed|sofa|couch)\b/i
 
 export function detect(state: DetectState, obs: Observation, heartbeat: boolean): { state: DetectState; alerts: { kind: AlertKind; text: string }[] } {
     const alerts: { kind: AlertKind; text: string }[] = []

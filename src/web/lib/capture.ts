@@ -86,6 +86,119 @@ function toJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
     )
 }
 
+// ---------- rolling video buffer ----------
+// MediaRecorder on the capture stream, restarted every SEGMENT_MS so each segment is a standalone playable file.
+// Keeps the last KEEP_SEGMENTS finished segments; on request, flushes the current one and uploads the last two.
+const SEGMENT_MS = 10_000
+const KEEP_SEGMENTS = 2
+const VIDEO_BPS = 600_000
+
+type Segment = { blob: Blob; t0: number; t1: number }
+
+function pickMime(): string | null {
+    const MR = (globalThis as any).MediaRecorder as typeof MediaRecorder | undefined
+    if (!MR) return null
+    for (const m of ["video/webm;codecs=vp8", "video/webm", "video/mp4"]) {
+        try { if (MR.isTypeSupported(m)) return m } catch {}
+    }
+    return null
+}
+
+type VideoBuffer = { stop: () => void; request: (reason: string) => void }
+
+function startVideoBuffer(stream: MediaStream, camId: string, offsetMs: number, onClip?: (n: number) => void): VideoBuffer | null {
+    const mime = pickMime()
+    if (!mime) return null
+    const vstream = new MediaStream(stream.getVideoTracks())
+    let segments: Segment[] = []
+    let rec: MediaRecorder | null = null
+    let segTimer: ReturnType<typeof setTimeout> | null = null
+    let stopped = false
+    let uploading = false
+    let flushWaiter: (() => void) | null = null
+
+    const begin = () => {
+        if (stopped) return
+        let r: MediaRecorder
+        try {
+            r = new MediaRecorder(vstream, { mimeType: mime, videoBitsPerSecond: VIDEO_BPS })
+        } catch {
+            return // unsupported in practice: frames only
+        }
+        const chunks: Blob[] = []
+        const t0 = Date.now() + offsetMs
+        r.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data) }
+        r.onstop = () => {
+            const t1 = Date.now() + offsetMs
+            if (chunks.length) {
+                segments.push({ blob: new Blob(chunks, { type: chunks[0].type || mime.split(";")[0] }), t0, t1 })
+                if (segments.length > KEEP_SEGMENTS) segments = segments.slice(-KEEP_SEGMENTS)
+            }
+            const w = flushWaiter
+            flushWaiter = null
+            w?.()
+            begin() // next segment right away
+        }
+        r.onerror = () => {}
+        try {
+            r.start()
+        } catch {
+            return
+        }
+        rec = r
+        if (segTimer) clearTimeout(segTimer)
+        segTimer = setTimeout(rotate, SEGMENT_MS)
+    }
+
+    const rotate = () => {
+        if (rec && rec.state !== "inactive") {
+            try { rec.stop() } catch {} // onstop stores the segment and starts the next
+        }
+    }
+
+    const flush = () =>
+        new Promise<void>(resolve => {
+            if (!rec || rec.state === "inactive") return resolve()
+            const to = setTimeout(resolve, 3000)
+            flushWaiter = () => { clearTimeout(to); resolve() }
+            rotate()
+        })
+
+    const requestClip = async (reason: string) => {
+        if (uploading || stopped) return
+        uploading = true
+        try {
+            await flush()
+            const toSend = segments.slice(-KEEP_SEGMENTS)
+            let n = 0
+            for (const seg of toSend) {
+                const q = `cam=${encodeURIComponent(camId)}&t0=${seg.t0}&t1=${seg.t1}&reason=${encodeURIComponent(reason)}`
+                try {
+                    const res = await fetch(`/api/clips?${q}`, { method: "POST", headers: { "Content-Type": seg.blob.type || "video/webm" }, body: seg.blob })
+                    if (res.ok) n++
+                } catch {}
+            }
+            if (n) onClip?.(n)
+        } finally {
+            uploading = false
+        }
+    }
+
+    begin()
+    if (!rec) return null // MediaRecorder failed to start: frames only
+    return {
+        request: reason => void requestClip(reason).catch(() => {}),
+        stop: () => {
+            stopped = true
+            if (segTimer) clearTimeout(segTimer)
+            const r = rec
+            rec = null
+            try { if (r && r.state !== "inactive") r.stop() } catch {}
+            segments = []
+        }
+    }
+}
+
 function drawScaled(src: HTMLVideoElement, canvas: HTMLCanvasElement): boolean {
     const vw = src.videoWidth, vh = src.videoHeight
     if (!vw || !vh) return false
@@ -102,6 +215,7 @@ export function startCapture(opts: {
     offsetMs: number
     onFrame?: (info: { sent: boolean; t: number }) => void
     onError?: (e: Error) => void
+    onClip?: (n: number) => void // a clip was uploaded (n = segments sent)
 }): () => void {
     const { video, camId, offsetMs } = opts
     let stream: MediaStream | null = null
@@ -113,6 +227,7 @@ export function startCapture(opts: {
     let settleLeft = 0
     let coveredTicks = 0
     let tamperSentAt = 0
+    let buffer: VideoBuffer | null = null
 
     // "covered" once the thumbnail has been very dark or flat for TAMPER_TICKS ticks; then a 30s cooldown.
     const checkTamper = (g: Uint8ClampedArray, now: number): "covered" | null => {
@@ -174,6 +289,8 @@ export function startCapture(opts: {
                 throw new Error("unknown camera (site was reset) - reload this page")
             }
             if (!res.ok) throw new Error(`ingest ${res.status}`)
+            const body = (await res.json().catch(() => null)) as { clip?: { reason?: string } } | null
+            if (body?.clip) buffer?.request(String(body.clip.reason ?? ""))
             lastThumb = g
             lastSentAt = now
             if (motion) settleLeft = SETTLE_FRAMES
@@ -201,6 +318,11 @@ export function startCapture(opts: {
             video.playsInline = true
             video.setAttribute("playsinline", "")
             await video.play().catch(() => {})
+            try {
+                buffer = startVideoBuffer(stream, camId, offsetMs, opts.onClip)
+            } catch {
+                buffer = null // no MediaRecorder: frames only
+            }
             timer = setInterval(() => void tick(), TICK_MS)
         } catch (e) {
             opts.onError?.(e instanceof Error ? e : new Error(String(e)))
@@ -210,6 +332,8 @@ export function startCapture(opts: {
     return () => {
         stopped = true
         if (timer) clearInterval(timer)
+        buffer?.stop()
+        buffer = null
         stream?.getTracks().forEach(tr => tr.stop())
         video.srcObject = null
     }

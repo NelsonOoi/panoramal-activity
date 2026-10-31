@@ -18,6 +18,7 @@ export function Capture() {
     const [hidden, setHidden] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [now, setNow] = useState(Date.now())
+    const [clipAt, setClipAt] = useState(0)
     const stop = useRef<(() => void) | null>(null)
 
     useEffect(() => {
@@ -54,6 +55,7 @@ export function Capture() {
                         setError(null)
                     }
                 },
+                onClip: () => setClipAt(Date.now()),
                 onError: e => {
                     setError(e.message)
                     if (/permission|denied|notallowed/i.test(e.message + e.name)) setPhase("error")
@@ -88,6 +90,11 @@ export function Capture() {
                                 {sync && (
                                     <>
                                         <span className="text-[#71717a]"> · </span>synced ±<span style={{ fontFamily: MONO }}>{sync.errMs}</span> ms
+                                    </>
+                                )}
+                                {now - clipAt < 4000 && (
+                                    <>
+                                        <span className="text-[#71717a]"> · </span>Clip sent
                                     </>
                                 )}
                             </>

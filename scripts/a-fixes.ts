@@ -28,7 +28,7 @@ ws.onmessage = e => {
 }
 await new Promise(r => (ws.onopen = r))
 
-const walker = (x: number) => ({ id: "A", desc: "walker", x, y: 0.4, w: 0.08, h: 0.3, action: "walking" })
+const walker = (x: number) => ({ id: "A", desc: "top: white t-shirt; bottom: blue jeans; head: short black hair; carrying: none", x, y: 0.35, w: 0.1, h: 0.4, action: "walking" })
 const obs = (cam: string, people: any[], objects: any[], extra: Record<string, unknown> = {}) =>
     post("/api/debug/observe", { cam, t: Date.now(), people, objects, notable: null, ...extra })
 const tote = (x = 0.5) => ({ label: "yellow tote", x, y: 0.62 })

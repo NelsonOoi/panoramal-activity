@@ -1,4 +1,4 @@
-import type { Alert, BlindSpot, CameraMeta, DashEvent, IncidentState, Knock, RelayCard, SiteEdge } from "../../shared/types"
+import type { Alert, BlindSpot, CameraMeta, Clip, DashEvent, IncidentState, Knock, RelayCard, SiteEdge } from "../../shared/types"
 
 export interface ObsInfo {
     t: number
@@ -28,6 +28,7 @@ export interface DashState {
     knockDismissed: string[]
     cards: RelayCard[]
     incident: IncidentState | null
+    clips: Clip[] // newest first (by t0), max 100
     changed: { ids: string[]; rev: number }
     lastObs: Record<string, ObsInfo>
     frames: Record<string, FrameInfo[]> // newest last
@@ -47,11 +48,23 @@ export const initialState: DashState = {
     knockDismissed: [],
     cards: [],
     incident: null,
+    clips: [],
     changed: { ids: [], rev: 0 },
     lastObs: {},
     frames: {},
     events: 0
 }
+
+export const MAX_CLIPS = 100
+
+// Upsert clips by id (later lists win), newest first by start time.
+export function mergeClips(...lists: Clip[][]): Clip[] {
+    const byId = new Map<string, Clip>()
+    for (const l of lists) for (const c of l) byId.set(c.id, c)
+    return [...byId.values()].sort((a, b) => b.t0 - a.t0 || b.t1 - a.t1)
+}
+
+export const overlaps = (c: Clip, t0: number, t1: number) => c.t0 <= t1 && c.t1 >= t0
 
 export type Action =
     | { type: "event"; event: DashEvent }
@@ -179,6 +192,8 @@ function applyEvent(s: DashState, e: DashEvent): DashState {
             return { ...s, cards: mergeCards(s.cards, [e.card]) }
         case "knock":
             return { ...s, knocks: { ...s.knocks, [e.knock.guestId]: e.knock } }
+        case "clip":
+            return { ...s, clips: mergeClips(s.clips, [e.clip]).slice(0, MAX_CLIPS) }
         case "incident": {
             const inc = e.incident
             const isNew = !s.incident || s.incident.id !== inc.id

@@ -3,7 +3,7 @@ import type { Alert, AskResult, DashEvent, IncidentState, Observation, RelayCard
 import { action, getConfig, getJSON, isInert, setInert } from "../lib/api"
 import { type Player, type Recorded, type SourceStatus, connectLive, parseRecording, playEvents, rebaseTimes } from "../lib/source"
 import { initialState, reducer } from "../lib/store"
-import { clock } from "../lib/format"
+import { clock, prettyDesc } from "../lib/format"
 import { buildMock } from "../mock"
 import { CameraView, type CameraApi } from "./CameraView"
 import { CamerasCard } from "./Cameras"
@@ -185,7 +185,7 @@ export function Dashboard() {
                 <main className="flex min-h-0 flex-1 flex-wrap items-stretch gap-4 px-5 py-4">
                     <CamerasCard state={state} publicUrl={publicUrl} className="flex-[999_1_560px] min-[1340px]:h-full" />
                     <RelayCardView cards={state.cards} incident={state.incident} className="max-h-[80vh] flex-[1_1_320px] min-[1340px]:h-full min-[1340px]:max-h-none" />
-                    <CaseFile incident={state.incident} className="max-h-[80vh] flex-[1_1_380px] min-[1340px]:h-full min-[1340px]:max-h-none" />
+                    <CaseFile incident={state.incident} clips={state.clips} className="max-h-[80vh] flex-[1_1_380px] min-[1340px]:h-full min-[1340px]:max-h-none" />
                 </main>
             </div>
             <Toasts
@@ -197,7 +197,7 @@ export function Dashboard() {
                 onKnock={onKnock}
                 onDismissKnock={onDismissKnock}
             />
-            <CameraView camera={viewCam} at={view?.at} lastN={view ? (state.lastObs[view.camId]?.n ?? 0) : 0} api={camApi} onClose={closeView} />
+            <CameraView camera={viewCam} at={view?.at} lastN={view ? (state.lastObs[view.camId]?.n ?? 0) : 0} clips={state.clips} api={camApi} onClose={closeView} />
             <NewIncident open={newOpen} camIds={camIds} onClose={() => setNewOpen(false)} onStart={startIncident} />
             {dev && <DevPanel status={status} events={state.events} player={player} mode={mode} />}
         </Ctx.Provider>
@@ -216,7 +216,7 @@ async function localAsk(camId: string, question: string, emit: (e: DashEvent) =>
     const who = new Map<string, { desc: string; t: number; frameRef: string }>()
     for (const o of [...seen].reverse()) for (const p of o.people) if (!who.has(p.id)) who.set(p.id, { desc: p.desc, t: o.t, frameRef: o.frameRef })
     const text = who.size
-        ? `I saw ${[...who.entries()].map(([id, w]) => `${id} (${w.desc}) at ${clock(w.t)}`).join(", ")}. I have ${obs.length} frames in memory.`
+        ? `I saw ${[...who.entries()].map(([id, w]) => `${id} (${prettyDesc(w.desc)}) at ${clock(w.t)}`).join(", ")}. I have ${obs.length} frames in memory.`
         : obs.length
           ? `Nobody came into my view in the ${obs.length} frames I remember.`
           : "I haven't recorded anything yet."

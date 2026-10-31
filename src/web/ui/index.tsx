@@ -1,7 +1,9 @@
 // Hand-built shadcn-style primitives (dark zinc). No component library.
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react"
 import { X } from "lucide-react"
+import type { Clip } from "../../shared/types"
+import { clock } from "../lib/format"
 
 export function cn(...xs: (string | false | null | undefined)[]) {
     return xs.filter(Boolean).join(" ")
@@ -210,4 +212,35 @@ export function DialogHeader({ title, description, onClose, id, extra }: { title
 
 export function Logo({ size = 24 }: { size?: number }) {
     return <img src="/favicon.svg" alt="" width={size} height={size} className="shrink-0" />
+}
+
+// Compact incident clip: camera, mono time range, and a small player. A clip that fails to load keeps its box.
+export function clipDomId(c: Clip) {
+    return `clip-${c.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`
+}
+export function ClipCard({ clip, className }: { clip: Clip; className?: string }) {
+    const [broken, setBroken] = useState(false)
+    return (
+        <div id={clipDomId(clip)} className={cn("flex w-[240px] shrink-0 flex-col gap-1.5", className)}>
+            <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-[13px] font-medium">{clip.camId}</span>
+                <span className="shrink-0 font-mono text-xs text-muted-fg">
+                    {clock(clip.t0)}–{clock(clip.t1)}
+                </span>
+            </div>
+            {broken ? (
+                <div className="grid aspect-video w-full place-items-center rounded-md border border-border bg-muted text-[13px] text-muted-fg">Clip unavailable</div>
+            ) : (
+                <video
+                    src={clip.url}
+                    controls
+                    muted
+                    playsInline
+                    preload="metadata"
+                    onError={() => setBroken(true)}
+                    className="aspect-video w-full rounded-md border border-border bg-muted object-contain"
+                />
+            )}
+        </div>
+    )
 }

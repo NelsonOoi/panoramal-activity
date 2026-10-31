@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import type { CameraMeta } from "../../shared/types"
-import { clock, seconds } from "../lib/format"
+import { clock, prettyDesc, seconds } from "../lib/format"
 import type { DashState } from "../lib/store"
 import { Badge, Button, Card, CardContent, CardHeader, Label, Panel, cn } from "../ui"
 import { statusOf, useDash } from "./ctx"
@@ -102,7 +102,7 @@ function Tile({ cam, state, alert }: { cam: CameraMeta; state: DashState; alert:
         : off
           ? `Last frame ${clock(last.t)}`
           : people && people.length
-            ? people.map(p => `${p.id} · ${p.desc}${p.action ? `, ${p.action}` : ""}`).join("; ")
+            ? people.map(p => `${p.id} · ${prettyDesc(p.desc)}${p.action ? `, ${p.action}` : ""}`).join("; ")
             : last.people > 0
               ? `${last.people} in view`
               : "Nobody in view"
