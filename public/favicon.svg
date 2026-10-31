@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Panoramal Activity">
+  <!-- Tile: shadcn zinc-950 with a zinc-800 hairline -->
+  <rect x="0.5" y="0.5" width="63" height="63" rx="14" fill="#09090b" stroke="#27272a"/>
+
+  <!-- Panorama: a wide frame with gently curved top and bottom edges, like a stitched panoramic photo -->
+  <path d="M7 20.5 Q32 14.5 57 20.5 V44.5 Q32 38.5 7 44.5 Z"
+        fill="none" stroke="#a1a1aa" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Horizon inside the panorama -->
+  <path d="M10.5 39.5 L19 32 L24.5 36.5 L31 30 L38 35.5 L44 31.5 L53.5 39"
+        fill="none" stroke="#52525b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Ghost: stands in the frame and rises out of the top. The dark outline separates it from the frame lines. -->
+  <path d="M23.5 47 V30 a8.5 8.5 0 0 1 17 0 V47 l-2.83 -2.6 -2.84 2.6 -2.83 -2.6 -2.83 2.6 -2.84 -2.6 Z"
+        fill="#fafafa" stroke="#09090b" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>
+  <circle cx="29" cy="31" r="1.7" fill="#09090b"/>
+  <circle cx="35" cy="31" r="1.7" fill="#09090b"/>
+</svg>

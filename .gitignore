@@ -7,3 +7,5 @@ generated/
 !.env.example
 .logs/
 frames/
+.cache/
+.relay-tokens*.json

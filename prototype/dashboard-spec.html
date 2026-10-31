@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panoramal Activity: dashboard spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:#09090b;--foreground:#fafafa;
+  --card:#09090b;--muted:#18181b;--muted-fg:#a1a1aa;--subtle:#71717a;
+  --border:#27272a;--input:#27272a;--ring:#d4d4d8;
+  --primary:#fafafa;--primary-fg:#18181b;--secondary:#27272a;
+  --radius:10px;--mono:'Geist Mono',ui-monospace,monospace
+}
+*{box-sizing:border-box;border-color:var(--border)}
+body{margin:0;background:var(--background);color:var(--foreground);font:14px/1.5 Geist,Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,textarea{font:inherit;color:inherit}
+.app{min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;flex-grow:1;font-weight:600}
+.mark{width:24px;height:24px;border-radius:6px;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;font-size:12px;font-weight:700}
+.sep{width:1px;height:20px;background:var(--border)}
+.muted{color:var(--muted-fg)}
+.subtle{color:var(--subtle)}
+.mono{font-family:var(--mono)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:transparent;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--muted)}
+.btn.primary{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.btn.primary:hover{background:#e4e4e7}
+.btn:focus-visible,.tile:focus-visible,.cite:focus-visible,.logrow:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:500;color:var(--muted-fg);white-space:nowrap}
+.badge.solid{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.badge.sec{background:var(--secondary);color:var(--foreground);border-color:transparent}
+main{display:flex;flex-wrap:wrap;gap:16px;padding:16px 20px;flex-grow:1;align-items:stretch}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;min-width:0}
+.ch{padding:16px 18px 0;display:flex;align-items:flex-start;gap:12px}
+.ct{font-weight:600;font-size:15px;line-height:1.3}
+.cd{font-size:13px;color:var(--muted-fg)}
+.cc{padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;gap:8px}
+.wall{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.spot{display:flex;flex-direction:column;gap:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius)}
+.spot .scene{aspect-ratio:16/9;max-height:50vh}
+.spot.off .scene{opacity:.45}
+.strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;max-height:290px;overflow:auto;overscroll-behavior:contain;padding:2px}
+.mini{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:8px;border:1px solid var(--border)}
+.mini:hover{background:#0f0f12}
+.mini:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.mini.sel{border-color:var(--foreground);background:#0f0f12}
+.mini.off .scene{opacity:.4}
+.mini .scene{border-radius:4px}
+.mini .scene .box span{display:none}
+.mini .meta{display:flex;align-items:center;gap:6px;font-size:12px}
+.alertpip{font-size:11px;font-weight:500;height:18px;padding:0 6px;border-radius:5px;background:var(--primary);color:var(--primary-fg);display:inline-flex;align-items:center}
+.feed{display:flex;flex-direction:column;max-height:260px;overflow:auto;overscroll-behavior:contain}
+.tile{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:var(--radius);border:1px solid var(--border)}
+.tile:hover{background:#0f0f12}
+.tile.off .scene{opacity:.45}
+.scene{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#141416;border:1px solid var(--border)}
+.scene .floor{position:absolute;left:0;right:0;bottom:0;height:38%;background:#1c1c1f}
+.scene .table{position:absolute;left:14%;bottom:30%;width:26%;height:5%;background:#2a2a2e}
+.scene .door{position:absolute;right:10%;top:18%;width:14%;height:48%;border:2px solid #2a2a2e;background:#111113}
+.box{position:absolute;border:1.5px solid #fafafa;border-radius:3px}
+.box span{position:absolute;left:-1.5px;top:-21px;font-size:11px;font-weight:500;padding:1px 6px;border-radius:4px;white-space:nowrap;background:#fafafa;color:#09090b}
+.thumbs{display:flex;gap:4px}.thumbs span{flex:1;height:20px;border-radius:4px;background:#141416;border:1px solid var(--border)}
+.thumbs span.empty{background:transparent;border-style:dashed}
+.list .item{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border)}
+.list .item:first-child{border-top:0;padding-top:0}
+.msg{padding:10px 12px;border-radius:8px;border:1px solid var(--border)}
+.msg.nest{margin-left:18px;background:#0f0f12}
+.cite{all:unset;cursor:pointer;font-family:var(--mono);font-size:12px;padding:1px 7px;border-radius:6px;border:1px solid var(--border);color:var(--muted-fg)}
+.cite:hover{background:var(--muted);color:var(--foreground)}
+.story{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.step{display:flex;flex-direction:column;align-items:center;gap:3px}
+.step .th{width:80px;height:46px;border-radius:6px;background:#141416;border:1px solid var(--border)}
+.step .th.none{background:transparent;border-style:dashed}
+.gap{display:flex;flex-direction:column;align-items:center;gap:3px;padding-bottom:30px}
+.gap i{display:block;width:40px;border-top:1px solid var(--muted-fg)}
+.gap.unseen i{border-top:1px dashed var(--subtle)}
+.gap small{font-family:var(--mono);font-size:11px;color:var(--muted-fg)}
+.tl{display:flex;gap:14px}.tl .t{font-family:var(--mono);font-size:12px;color:var(--muted-fg);width:60px;flex-shrink:0;padding-top:2px}
+.strike{text-decoration:line-through;color:var(--subtle)}
+.sk{height:12px;border-radius:6px;background:var(--muted);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+.panel2{border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.qr{width:48px;height:48px;border-radius:6px;background:var(--foreground);flex-shrink:0;display:grid;place-items:center;color:var(--background);font-size:10px;font-weight:600}
+/* dialogs */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;padding:24px;z-index:10}
+.overlay.open{display:flex}
+.dialog{background:var(--background);border:1px solid var(--border);border-radius:12px;width:min(1120px,100%);max-height:calc(100vh - 48px);overflow:auto;overscroll-behavior:contain;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.log{overscroll-behavior:contain}
+.dialog.sm{width:min(520px,100%)}
+.dh{display:flex;align-items:flex-start;gap:10px;padding:20px 22px 0}
+.dt{font-size:17px;font-weight:600}
+.x{margin-left:auto;width:32px;height:32px;border-radius:6px;border:0;background:transparent;color:var(--muted-fg);cursor:pointer;display:grid;place-items:center}
+.x:hover{background:var(--muted);color:var(--foreground)}
+.cv{display:flex;flex-wrap:wrap;gap:18px;padding:18px 22px 22px}
+.cv .main{flex:999 1 540px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.cv .side{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.label{font-size:13px;font-weight:500}
+.log{display:flex;flex-direction:column;max-height:300px;overflow:auto}
+.logrow{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px}
+.logrow:hover{background:var(--muted)}
+.logrow.sel{background:var(--secondary)}
+.logrow .th{width:52px;height:30px;border-radius:4px;background:#141416;border:1px solid var(--border);flex-shrink:0}
+input[type=text],input[type=time],textarea{background:transparent;border:1px solid var(--input);border-radius:8px;padding:8px 12px;outline:none;width:100%}
+input[type=text]{height:36px}
+textarea{resize:vertical;min-height:80px}
+input:focus,textarea:focus{border-color:var(--ring);box-shadow:0 0 0 3px rgba(212,212,216,.12)}
+.field{display:flex;flex-direction:column;gap:8px}
+.tabs{display:inline-flex;gap:2px;padding:3px;border-radius:8px;background:var(--muted);flex-wrap:wrap}
+.tabs button{height:30px;padding:0 12px;border-radius:6px;border:0;background:transparent;color:var(--muted-fg);cursor:pointer;font-weight:500}
+.tabs button[aria-pressed=true]{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.checks label{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-weight:500}
+.checks input{width:16px;height:16px;accent-color:#fafafa}
+.df{display:flex;justify-content:flex-end;gap:8px}
+/* alerts */
+.toasts{position:fixed;left:16px;bottom:16px;z-index:15;display:flex;flex-direction:column;gap:10px;width:min(400px,calc(100vw - 32px));transform:translateZ(0);will-change:transform}
+.toast{background:var(--background);border:1px solid var(--border);border-radius:10px;padding:14px 14px 12px;box-shadow:0 4px 12px rgba(0,0,0,.4);display:flex;gap:12px;animation:in .2s ease-out}
+@keyframes in{from{transform:translateY(8px);opacity:0}}
+.toast .ic{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);display:grid;place-items:center;flex-shrink:0;color:var(--muted-fg)}
+.toast .tt{font-weight:500}
+.toast .meta{font-size:12px;color:var(--muted-fg)}
+.toast .acts{display:flex;gap:8px;margin-top:10px;align-items:center}
+.toast .btn{height:32px;padding:0 12px;font-size:13px}
+.bar{height:2px;background:var(--muted);border-radius:2px;margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--muted-fg);transform-origin:left}
+.toast.done{opacity:.7}
+/* spec */
+.specbtn{position:fixed;right:16px;bottom:16px;z-index:20;background:var(--background);transform:translateZ(0)}
+.specbox{display:none;position:fixed;right:16px;bottom:62px;width:min(440px,calc(100vw - 32px));max-height:70vh;overflow:auto;overscroll-behavior:contain;background:var(--background);border:1px solid var(--border);border-radius:12px;padding:16px 18px;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,.4);transform:translateZ(0)}
+.specbox.open{display:block}
+.specbox h3{margin:14px 0 4px;font-size:13px;font-weight:600}
+.specbox ul{margin:0;padding-left:18px;color:var(--muted-fg)}
+@media (max-width:720px){.wall,.checks{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><div class="mark" aria-hidden="true">P</div>Panoramal Activity<div class="sep" aria-hidden="true"></div><span class="muted" style="font-weight:400">3 of 4 cameras live</span></div>
+    <button class="btn" id="newIncBtn" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New incident</button>
+    <button class="btn primary" id="quickBtn" type="button">What just happened?</button>
+  </header>
+
+  <main>
+    <section class="card" style="flex:999 1 560px">
+      <div class="ch"><div style="flex-grow:1"><div class="ct">Cameras</div><div class="cd">Most active first. Select a camera to see its latest analysis.</div></div>
+        <div class="row"><span class="cd mono" id="pageInfo"></span>
+          <button class="btn" type="button" id="prevPage" aria-label="Previous cameras" style="width:36px;padding:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button class="btn" type="button" id="nextPage" aria-label="Next cameras" style="width:36px;padding:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></div></div>
+      <div class="cc">
+        <div class="wall" id="wall"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+          <div class="panel2" style="flex:2 1 280px">
+            <div class="label" style="margin-bottom:8px">Learned handoffs</div>
+            <div class="list" id="handoffs"></div>
+          </div>
+          <div style="flex:1 1 220px;display:flex;flex-direction:column;gap:12px">
+            <div class="panel2 row" style="gap:12px"><div class="qr">QR</div><div><div class="label">Add camera</div><div class="cd">Scan with a phone</div></div></div>
+            <div class="panel2 row" style="gap:12px"><div class="qr">QR</div><div><div class="label">Saw something?</div><div class="cd">Add your footage</div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="flex:1 1 320px">
+      <div class="ch"><div style="flex-grow:1"><div class="ct">Relay</div><div class="cd">Messages between agents</div></div><span class="badge mono" id="chan">#incident-4</span></div>
+      <div class="cc" id="relay"></div>
+    </section>
+
+    <section class="card" style="flex:1 1 380px" id="casefile"></section>
+  </main>
+</div>
+
+<!-- Camera view -->
+<div class="overlay" id="camOv" role="dialog" aria-modal="true" aria-labelledby="camTitle">
+  <div class="dialog">
+    <div class="dh">
+      <div><div class="row"><div class="dt" id="camTitle"></div><span class="badge" id="camBadge"></span></div><div class="cd" id="camMeta"></div></div>
+      <button class="x" type="button" aria-label="Close" data-close="camOv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="cv">
+      <div class="main">
+        <div class="scene" id="camScene"></div>
+        <div class="row" style="justify-content:space-between"><span class="label">Frame</span><span class="mono muted" style="font-size:12px" id="frameTime"></span></div>
+        <div class="panel2">
+          <div class="label" style="margin-bottom:8px">Ask this camera</div>
+          <form id="askForm" class="row">
+            <label for="askInput" style="position:absolute;left:-9999px">Question for this camera</label>
+            <input type="text" id="askInput" placeholder="Who came in through the entrance?">
+            <button class="btn primary" type="submit">Ask</button>
+          </form>
+          <div id="askOut"></div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="panel2">
+          <div class="label" style="margin-bottom:8px">In view now</div>
+          <div id="people" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="label" style="margin:14px 0 4px">Objects</div>
+          <div id="objects" class="muted"></div>
+          <div id="notable" style="margin-top:12px"></div>
+        </div>
+        <div class="panel2">
+          <div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="label">Recent log</span><span class="cd">Newest first</span></div>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New incident -->
+<div class="overlay" id="incOv" role="dialog" aria-modal="true" aria-labelledby="incTitle">
+  <div class="dialog sm">
+    <div class="dh">
+      <div><div class="dt" id="incTitle">New incident</div><div class="cd">Starts a fresh investigation. Each selected camera is questioned over Relay.</div></div>
+      <button class="x" type="button" aria-label="Close" data-close="incOv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <form id="incForm" style="padding:20px 22px 22px;display:flex;flex-direction:column;gap:18px">
+      <div class="field"><label class="label" for="incQ">Question</label><textarea id="incQ" placeholder="What happened at the table?"></textarea></div>
+      <div class="field"><span class="label" id="winLbl">Time window</span>
+        <div class="tabs" role="group" aria-labelledby="winLbl" id="winSeg">
+          <button type="button" data-w="1" aria-pressed="false">Last 1 min</button>
+          <button type="button" data-w="5" aria-pressed="true">Last 5 min</button>
+          <button type="button" data-w="15" aria-pressed="false">Last 15 min</button>
+          <button type="button" data-w="custom" aria-pressed="false">Custom</button>
+        </div>
+        <div class="row" id="custom" style="display:none;gap:10px">
+          <label for="from" class="cd">From</label><input type="time" id="from" value="14:00" style="width:130px">
+          <label for="to" class="cd">to</label><input type="time" id="to" value="14:05" style="width:130px">
+        </div>
+      </div>
+      <div class="field"><span class="label" id="camsLbl">Cameras</span><div class="checks" role="group" aria-labelledby="camsLbl" id="incCams"></div></div>
+      <div class="df">
+        <button class="btn" type="button" data-close="incOv">Cancel</button>
+        <button class="btn primary" type="submit">Start investigation</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<button class="btn specbtn" type="button" id="specBtn" aria-expanded="false">Spec notes</button>
+<div class="specbox" id="specBox">
+  <div style="font-weight:600">Dashboard spec</div>
+  <div class="cd">Prototype with sample data. Visual style: shadcn/ui dark (zinc), one primary action, outline badges, no per-camera colours.</div>
+  <h3>Cameras</h3>
+  <ul>
+    <li>Camera grid: 4 cameras per page, most active first (alert → people in view → live → guest → offline). Left and right buttons page through the rest ("1–4 of 12"). Order changes only when something happens (an alert, a camera joining), never every frame.</li>
+    <li>Each tile shows the latest frame with boxes, a status badge, an Alert tag if one is open, the observation count, who's in view and the last 6 frames.</li>
+    <li>Selecting a tile opens the camera view. The observation log lives there, not on the main screen.</li>
+    <li>No floor plan. "Learned handoffs" lists the links learned from people moving between cameras (average time, count).</li>
+    <li>QR cards: add a camera (/capture) and "Saw something?" (/witness).</li>
+  </ul>
+  <h3>Camera view (select a tile)</h3>
+  <ul>
+    <li>The latest frame, large, with each person's box and label.</li>
+    <li>In view now (id, description, action), objects, and the latest notable event.</li>
+    <li>Recent log: the camera's memory, newest first. Unchanged runs collapse into one line (“A · standing at the table · 14:02:58–14:03:30 · 32 frames”). Select a row to show that frame.</li>
+    <li>Ask this camera: the question goes to the camera over Relay, and it answers from its own memory with cited frames. Works when the camera is offline.</li>
+  </ul>
+  <h3>New incident</h3>
+  <ul>
+    <li>Question, time window (1 / 5 / 15 min or custom), cameras (all selected). Always starts a fresh case.</li>
+    <li>"What just happened?" is the one-click version: last minute, all cameras.</li>
+  </ul>
+  <h3>Alerts</h3>
+  <ul>
+    <li>Raised when a camera sees a big change: an object gone, an object left behind, a crowd change (±3 people), the camera covered or moved, or a notable event the model flags.</li>
+    <li>Toast (bottom-left): camera, what changed, time, Acknowledge / Investigate. A countdown shows when it will escalate.</li>
+    <li>Escalation is a Terse alarm on the alert. If nobody responds within 30 s, the alert starts an investigation by itself (window 30 s before to 15 s after) and notifies on-call over Relay.</li>
+    <li>Acknowledge cancels the alarm. Investigate opens the case straight away. Each alert's history is kept (raised, acknowledged, escalated).</li>
+    <li class="subtle">Prototype: <button class="btn" type="button" id="simAlert" style="height:28px;padding:0 10px;font-size:12px">Simulate next alert</button> <button class="btn" type="button" id="sim12" style="height:28px;padding:0 10px;font-size:12px">Simulate 12 cameras</button></li>
+  </ul>
+  <h3>Case file</h3>
+  <ul>
+    <li>Question, status, window and witnesses; a storyboard per person (camera to camera, with dashed "unseen" gaps); a timeline with citations (each opens that frame); the contradiction; the verdict.</li>
+    <li>A guest clip that fills a gap makes the dashed connector solid, and changed items are marked Revised with the old claim struck through.</li>
+  </ul>
+</div>
+
+<script>
+const CAMS = [
+  {id:'cam-1',status:'live',obs:148,frame:'14:03:01',
+   people:[{id:'A',desc:'navy jacket, red beanie',action:'picking up the yellow tote',box:[46,22,14,62]}],
+   objects:'Yellow tote (held by A), table, door',notable:'A picked up the yellow tote',
+   log:[['14:03:01','A · picking up the yellow tote',true],['14:02:58','A · standing at the table',false],['14:02:51','A · entering through the door',true],['14:02:20','Nobody in view',false],['14:01:47','B · grey hoodie · walking past',false]]},
+  {id:'cam-2',status:'live',obs:96,frame:'14:03:28',people:[],objects:'Table, chairs',notable:null,
+   log:[['14:03:28','Nobody in view',false],['14:03:02','A · walking right, carrying tote',false],['14:02:40','Nobody in view',false]]},
+  {id:'cam-3',status:'offline',obs:71,frame:'14:03:04',people:[],objects:'Side corridor',notable:null,
+   log:[['14:03:04','A · black jacket · heading to side exit',false],['14:02:12','Nobody in view',false]]},
+  {id:'guest-7f3a',status:'guest',obs:12,frame:'14:03:06',
+   people:[{id:'A',desc:'navy jacket, red beanie',action:'leaving through side exit',box:[62,26,13,58]}],objects:'Yellow tote (held by A), side exit',notable:'A left through the side exit',
+   log:[['14:03:06','A · leaving through side exit',true],['14:03:03','A · walking towards exit',false]]}
+];
+const STATUS = {live:['Live',''],offline:['Offline · memory kept',''],guest:['Guest clip','sec']};
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const camById = id => CAMS.find(c => c.id === id);
+
+function scene(c, people) {
+  const boxes = (people ?? c.people).filter(p => p.box).map(p => `<div class="box" style="left:${p.box[0]}%;top:${p.box[1]}%;width:${p.box[2]}%;height:${p.box[3]}%"><span>${esc(p.id)} · ${esc(p.desc)}</span></div>`).join('');
+  return `<div class="floor"></div><div class="table"></div><div class="door"></div>${boxes}`;
+}
+
+// Camera grid: 4 per page, most active first (alert → people in view → live → guest → offline).
+// Order is recomputed only when something changes (an alert, a camera joining), never on every frame.
+const PAGE = 4;
+let page = 0;
+const score = c => (c.alert ? 8 : 0) + (c.people.length ? 4 : 0) + (c.status !== 'offline' ? 2 : 0) + (c.status === 'guest' ? 1 : 0);
+const sorted = () => [...CAMS].sort((a, b) => score(b) - score(a) || b.obs - a.obs);
+const inViewText = c => c.people.length ? c.people.map(p => `${p.id} · ${p.desc}, ${p.action}`).join('; ') : (c.status === 'offline' ? `Last frame ${c.frame}` : 'Nobody in view');
+function renderWall() {
+  const list = sorted(), pages = Math.max(1, Math.ceil(list.length / PAGE));
+  page = Math.min(page, pages - 1);
+  $('#wall').innerHTML = list.slice(page * PAGE, page * PAGE + PAGE).map(c => {
+    const [label, cls] = STATUS[c.status];
+    const n = c.id.startsWith('guest') ? 4 : 6;
+    const thumbs = Array.from({length: 6}, (_, k) => `<span class="${k < n ? '' : 'empty'}"></span>`).join('');
+    return `<button class="tile ${c.status === 'offline' ? 'off' : ''}" type="button" data-cam="${c.id}">
+      <div class="scene">${scene(c)}</div>
+      <div class="row"><span style="font-weight:500">${c.id}</span><span class="badge ${cls}">${label}</span>${c.alert ? '<span class="alertpip">Alert</span>' : ''}<span class="mono subtle" style="margin-left:auto;font-size:12px">${c.obs} obs</span></div>
+      <div class="cd" style="min-height:20px">${esc(inViewText(c))}</div>
+      <div class="thumbs">${thumbs}</div></button>`;
+  }).join('');
+  $('#pageInfo').textContent = `${page * PAGE + 1}–${Math.min(list.length, page * PAGE + PAGE)} of ${list.length}`;
+  $('#prevPage').disabled = page === 0;
+  $('#nextPage').disabled = page >= pages - 1;
+}
+$('#prevPage').addEventListener('click', () => { page--; renderWall(); });
+$('#nextPage').addEventListener('click', () => { page++; renderWall(); });
+renderWall();
+
+$('#handoffs').innerHTML = [['cam-1','cam-2','3.6s',4],['cam-2','cam-3','5.1s',2]].map(([a,b,avg,n]) =>
+  `<div class="item"><span>${a}</span><span class="subtle">→</span><span>${b}</span><span class="mono muted" style="margin-left:auto;font-size:12px">${avg} avg · ${n} seen</span></div>`).join('');
+
+const RELAY = [
+  ['investigator','#incident-4','Question','What happened at the table between 14:02:30 and 14:03:30?',0],
+  ['cam-1','thread','Testimony','At 14:03:01 A (navy jacket) picked up the yellow tote and walked right.',1],
+  ['cam-3','thread','Testimony','At 14:03:04 A, in a black jacket, crossed my view heading to the side exit.',1],
+  ['investigator','@cam-1, @cam-3','Re-examine','Jacket colour: navy or black?',0],
+  ['site','@guest-7f3a','Admit','Admitted. Clip aligned by matching the tote pickup (±0.5 s).',0]
+];
+function renderRelay(extra = []) {
+  $('#relay').innerHTML = [...RELAY, ...extra].map(([f,to,k,t,n]) =>
+    `<div class="msg ${n ? 'nest' : ''}"><div class="row" style="font-size:13px"><span style="font-weight:500">${f}</span><span class="subtle">→ ${esc(to)}</span><span class="badge" style="margin-left:auto">${k}</span></div><div style="margin-top:4px">${esc(t)}</div></div>`).join('')
+    + `<div class="cd" style="margin-top:auto">via Agent Relay</div>`;
+}
+renderRelay();
+
+const cite = (cam, t) => `<button class="cite" type="button" data-cam="${cam}">${cam} ${t}</button>`;
+const step = (cam, t, none) => `<div class="step"><div class="th ${none ? 'none' : ''}"></div><span style="font-size:12px;font-weight:500">${cam}</span><span class="mono subtle" style="font-size:11px">${t}</span></div>`;
+function renderCase(c) {
+  $('#casefile').innerHTML = `
+    <div class="ch"><div style="flex-grow:1"><div class="ct">${esc(c.q)}</div><div class="cd mono" style="font-size:12px">${esc(c.win)}</div></div><span class="badge ${c.done ? '' : 'sec'}">${c.done ? 'Complete' : 'Gathering'}</span></div>
+    <div class="cc">
+    ${c.done ? `
+      <div class="panel2">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="label">A · navy jacket, red beanie</span><span class="cd">Storyboard</span></div>
+        <div class="story">${step('cam-1','14:03:01')}<div class="gap"><i></i><small>3.6s</small></div>${step('cam-3','14:03:04')}<div class="gap"><i></i><small>2s</small></div>${step('guest-7f3a','14:03:06')}<div class="gap unseen"><i></i><small>unseen 9s</small></div>${step('—','not seen again',true)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="tl"><div class="t">14:02:51</div><div style="flex-grow:1">A (navy jacket, red beanie) enters through the door.<div class="row" style="margin-top:6px;flex-wrap:wrap">${cite('cam-1','14:02:51')}</div></div></div>
+        <div class="tl"><div class="t">14:03:01</div><div style="flex-grow:1">A picks up the yellow tote from the table.<div class="row" style="margin-top:6px;flex-wrap:wrap">${cite('cam-1','14:03:01')}${cite('cam-2','14:03:02')}</div></div></div>
+        <div class="tl"><div class="t">14:03:06</div><div style="flex-grow:1"><div class="row" style="margin-bottom:2px"><span class="badge">Revised</span><span class="strike" style="font-size:13px">A probably leaves through an unwatched exit.</span></div>A leaves through the side exit carrying the tote.<div class="row" style="margin-top:6px">${cite('guest-7f3a','14:03:06')}</div></div></div>
+      </div>
+      <div class="panel2"><div class="label" style="margin-bottom:4px">Contradiction resolved</div><div class="muted">cam-1 “navy jacket” vs cam-3 “black jacket”. Navy: cam-3 was backlit.</div></div>
+      <div class="panel2" style="background:var(--muted);border-color:transparent"><div class="row" style="justify-content:space-between;margin-bottom:4px"><span class="label">Verdict</span><span class="cd">Revision 2</span></div>Person A (navy jacket, red beanie) entered by the door, picked up the yellow tote at the table and left through the side exit, which no site camera covers. A guest's clip confirmed the exit.</div>`
+    : `${c.cams.map(id => `<div class="row"><span style="width:90px;font-weight:500">${id}</span><span class="cd" style="width:140px">Searching memory…</span><div class="sk" style="flex-grow:1"></div></div>`).join('')}
+       <div class="cd">Cameras answer over Relay. The storyboard, timeline and verdict fill in here.</div>`}
+    </div>`;
+}
+renderCase({q:'What happened at the table?', win:'inc-4 · 14:02:30–14:03:30 · 4 cameras', done:true});
+
+let current = null;
+function openCam(id, row = 0) {
+  const c = camById(id); current = c;
+  const [label, cls] = STATUS[c.status];
+  $('#camTitle').textContent = c.id;
+  $('#camBadge').textContent = label; $('#camBadge').className = 'badge ' + cls;
+  $('#camMeta').textContent = `${c.obs} observations`;
+  showFrame(c, row);
+  $('#people').innerHTML = c.people.length ? c.people.map(p => `<div class="row" style="align-items:flex-start"><span class="badge">${p.id}</span><div><div>${esc(p.desc)}</div><div class="cd">${esc(p.action)}</div></div></div>`).join('') : '<div class="muted">Nobody in view</div>';
+  $('#objects').textContent = c.objects;
+  $('#notable').innerHTML = c.notable ? `<div class="row"><span class="badge solid">Notable</span><span>${esc(c.notable)}</span></div>` : '';
+  $('#askOut').innerHTML = '';
+  $('#askInput').value = '';
+  $('#askInput').placeholder = c.id === 'cam-1' ? 'Who came in through the entrance?' : 'What did you see in the last 10 minutes?';
+  $('#camOv').classList.add('open');
+  $('#askInput').focus();
+}
+function showFrame(c, row) {
+  $('#camScene').innerHTML = scene(c, row === 0 ? c.people : []);
+  $('#frameTime').textContent = c.log[row][0] + (row === 0 ? ' · latest' : '');
+  $('#log').innerHTML = c.log.map(([lt, txt, notable], i) => `<button class="logrow ${i === row ? 'sel' : ''}" type="button" data-row="${i}"><span class="th"></span><span class="mono subtle" style="font-size:12px">${lt}</span><span style="${notable ? 'font-weight:500' : 'color:var(--muted-fg)'}">${esc(txt)}</span></button>`).join('');
+}
+$('#log').addEventListener('click', e => { const r = e.target.closest('.logrow'); if (r) showFrame(current, +r.dataset.row); });
+$('#askForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = $('#askInput').value.trim() || $('#askInput').placeholder;
+  const asked = `<div class="cd" style="margin:12px 0 6px">You asked: ${esc(q)}</div>`;
+  $('#askOut').innerHTML = asked + `<div style="display:flex;flex-direction:column;gap:6px"><div class="sk" style="width:90%"></div><div class="sk" style="width:60%"></div></div>`;
+  renderRelay([['operator','@' + current.id,'Question',q,0]]);
+  setTimeout(() => {
+    const ans = current.id === 'cam-1'
+      ? 'I saw one person come in through the entrance: A, in a navy jacket and red beanie, at 14:02:51. At 14:03:01 they picked up the yellow tote and walked right.'
+      : 'I saw A once, heading for the side exit at 14:03:04. Nobody else in the last 10 minutes.';
+    $('#askOut').innerHTML = asked + `<div style="line-height:1.55">${esc(ans)}</div><div class="row" style="margin-top:8px;flex-wrap:wrap">${current.log.filter(l => l[2] || current.id !== 'cam-1').slice(0,2).map(l => cite(current.id, l[0])).join('')}</div>`;
+    renderRelay([['operator','@' + current.id,'Question',q,0],[current.id,'@operator','Answer',ans,1]]);
+  }, 1600);
+});
+
+$('#incCams').innerHTML = CAMS.map(c => `<label><input type="checkbox" checked value="${c.id}">${c.id}</label>`).join('');
+$('#winSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $('#winSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#custom').style.display = b.dataset.w === 'custom' ? 'flex' : 'none';
+});
+$('#newIncBtn').addEventListener('click', () => { $('#incOv').classList.add('open'); $('#incQ').focus(); });
+function startCase(q, win, cams) {
+  $('#chan').textContent = '#incident-5';
+  renderRelay([['investigator','#incident-5','Question',q,0]]);
+  renderCase({q, win:'inc-5 · ' + win + ' · ' + cams.length + ' cameras', cams, done:false});
+  setTimeout(() => { renderCase({q, win:'inc-5 · ' + win + ' · ' + cams.length + ' cameras', done:true}); renderRelay(); }, 3500);
+}
+$('#incForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = $('#incQ').value.trim() || 'What happened at the table?';
+  const cams = [...$('#incCams').querySelectorAll('input:checked')].map(i => i.value);
+  const w = $('#winSeg').querySelector('[aria-pressed=true]').dataset.w;
+  $('#incOv').classList.remove('open');
+  startCase(q, w === 'custom' ? `${$('#from').value}–${$('#to').value}` : `last ${w} min`, cams);
+});
+$('#quickBtn').addEventListener('click', () => startCase('What happened?', 'last 1 min', CAMS.map(c => c.id)));
+
+// alerts: Acknowledge / Investigate, otherwise the alert's alarm escalates after 30 s
+const ICONS = {
+  'object-gone': '<path d="M3 7h18M5 7l1 13h12l1-13M9 7V4h6v3"/><path d="M4 4l16 16"/>',
+  'object-left': '<rect x="5" y="8" width="14" height="12" rx="2"/><path d="M9 8V5h6v3M12 12v4"/>',
+  'crowd': '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M15 14.5c3 0 6 2 6 5.5"/>',
+  'tamper': '<path d="M3 7h3l2-3h8l2 3h3v13H3z"/><path d="M4 4l16 16"/>',
+  'notable': '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>'
+};
+const ALERTS = [
+  {kind:'object-gone', cam:'cam-1', title:'Yellow tote is gone from the table', t:'14:03:09'},
+  {kind:'tamper', cam:'cam-3', title:'Camera covered or moved', t:'14:04:12'},
+  {kind:'object-left', cam:'cam-2', title:'Backpack left unattended by the chairs', t:'14:06:40'},
+  {kind:'crowd', cam:'cam-1', title:'4 people arrived', t:'14:08:02'},
+  {kind:'notable', cam:'cam-2', title:'Person fell near the table', t:'14:09:31'}
+];
+const KIND_LABEL = {'object-gone':'Object gone','object-left':'Object left','crowd':'Crowd change','tamper':'Camera tampered','notable':'Notable'};
+let alertIdx = 0;
+function raiseAlert() {
+  const a = ALERTS[alertIdx++ % ALERTS.length];
+  const ac = camById(a.cam);
+  if (ac) { ac.alert = true; renderWall(); }
+  const id = 'al-' + alertIdx, total = 30;
+  let left = total, timer;
+  const el = document.createElement('div');
+  el.className = 'toast'; el.id = id;
+  el.innerHTML = `<div class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${ICONS[a.kind]}</svg></div>
+    <div style="flex-grow:1;min-width:0">
+      <div class="row" style="justify-content:space-between"><span class="badge">${KIND_LABEL[a.kind]}</span><span class="meta mono">${a.cam} · ${a.t}</span></div>
+      <div class="tt" style="margin-top:6px">${esc(a.title)}</div>
+      <div class="meta" data-status>Auto-investigates in ${left}s</div>
+      <div class="bar"><i data-bar style="transform:scaleX(1)"></i></div>
+      <div class="acts" data-acts><button class="btn" type="button" data-ack>Acknowledge</button><button class="btn primary" type="button" data-inv>Investigate</button><button class="x" type="button" aria-label="Dismiss" data-dismiss style="width:28px;height:28px;margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    </div>`;
+  $('#toasts').prepend(el);
+  const finish = (status, keep) => {
+    clearInterval(timer);
+    if (ac) { ac.alert = false; renderWall(); }
+    el.querySelector('[data-status]').textContent = status;
+    el.querySelector('.bar').remove();
+    el.querySelector('[data-acts]').innerHTML = '<button class="x" type="button" aria-label="Dismiss" data-dismiss style="width:28px;height:28px;margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    el.classList.add('done');
+    if (!keep) setTimeout(() => el.remove(), 6000);
+  };
+  const investigate = (auto) => {
+    finish(auto ? 'Escalated: no response in 30s. Investigation started.' : 'Investigating · inc-5', true);
+    startCase(`What happened around "${a.title.toLowerCase()}"?`, `${a.t} −30s/+15s`, CAMS.map(c => c.id));
+  };
+  timer = setInterval(() => {
+    left--;
+    el.querySelector('[data-status]').textContent = `Auto-investigates in ${left}s`;
+    el.querySelector('[data-bar]').style.transform = `scaleX(${left / total})`;
+    if (left <= 0) investigate(true);
+  }, 1000);
+  el.querySelector('[data-ack]').onclick = () => finish('Acknowledged by you · escalation cancelled');
+  el.querySelector('[data-inv]').onclick = () => investigate(false);
+  el.addEventListener('click', e => { if (e.target.closest('[data-dismiss]')) { clearInterval(timer); el.remove(); } });
+}
+setTimeout(raiseAlert, 1500);
+$('#simAlert').addEventListener('click', raiseAlert);
+$('#sim12').addEventListener('click', () => {
+  ['cam-4','cam-5','cam-6','cam-7','cam-8','cam-9','cam-10','cam-11'].forEach((id, i) => {
+    if (camById(id)) return;
+    const off = i % 4 === 3, ppl = i % 3 === 0 && !off, t = '14:03:1' + i;
+    const txt = ppl ? 'C · white t-shirt · walking' : 'Nobody in view';
+    CAMS.push({id, status: off ? 'offline' : 'live', obs: 20 + i * 7, frame: t,
+      people: ppl ? [{id:'C', desc:'white t-shirt', action:'walking', box:[30,24,12,60]}] : [],
+      objects: 'Shelving', notable: null, log: [[t, txt, false]]});
+  });
+  renderWall();
+  $('#incCams').innerHTML = CAMS.map(c => `<label><input type="checkbox" checked value="${c.id}">${c.id}</label>`).join('');
+});
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-cam]'); if (t) openCam(t.dataset.cam);
+  const c = e.target.closest('[data-close]'); if (c) $('#' + c.dataset.close).classList.remove('open');
+  if (e.target.classList.contains('overlay')) e.target.classList.remove('open');
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(s => s.classList.remove('open')); });
+$('#specBtn').addEventListener('click', () => { const o = $('#specBox').classList.toggle('open'); $('#specBtn').setAttribute('aria-expanded', o); });
+</script>
+</body>
+</html>

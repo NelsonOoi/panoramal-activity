@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/* shadcn/ui dark zinc. Greyscale only; the one hue allowed is the destructive red on alert badges. */
+:root {
+    --background: #09090b;
+    --foreground: #fafafa;
+    --card: #09090b;
+    --muted: #18181b;
+    --muted-fg: #a1a1aa;
+    --subtle: #71717a;
+    --border: #27272a;
+    --input: #27272a;
+    --ring: #d4d4d8;
+    --primary: #fafafa;
+    --primary-fg: #18181b;
+    --primary-hover: #e4e4e7;
+    --secondary: #27272a;
+    --hover: #0f0f12;
+    --scene: #141416;
+    --destructive: #7f1d1d;
+    --destructive-fg: #fca5a5;
+    --radius: 10px;
+}
+
+@theme inline {
+    --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, monospace;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-muted: var(--muted);
+    --color-muted-fg: var(--muted-fg);
+    --color-subtle: var(--subtle);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-primary: var(--primary);
+    --color-primary-fg: var(--primary-fg);
+    --color-primary-hover: var(--primary-hover);
+    --color-secondary: var(--secondary);
+    --color-hover: var(--hover);
+    --color-scene: var(--scene);
+    --color-destructive: var(--destructive);
+    --color-destructive-fg: var(--destructive-fg);
+
+    /* Legacy names, mapped to zinc so older markup stays greyscale. */
+    --color-bg: var(--background);
+    --color-panel: var(--background);
+    --color-raised: var(--muted);
+    --color-line: var(--border);
+    --color-line-strong: var(--border);
+    --color-ink: var(--foreground);
+    --color-dim: var(--muted-fg);
+    --color-faint: var(--subtle);
+    --color-accent: var(--foreground);
+    --color-accent-soft: var(--muted);
+    --color-danger: var(--destructive-fg);
+    --color-ok: var(--muted-fg);
+    --color-warn: var(--muted-fg);
+    --color-knock: var(--muted-fg);
+
+    --animate-skeleton: skeleton 1.6s ease-in-out infinite;
+    --animate-toast-in: toast-in 0.2s ease-out;
+
+    @keyframes skeleton {
+        50% { opacity: 0.45; }
+    }
+    @keyframes toast-in {
+        from { transform: translateY(8px); opacity: 0; }
+    }
+}
+
+@layer base {
+* {
+    border-color: var(--border);
+}
+
+html {
+    background: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    background: var(--background);
+}
+
+button, input, textarea { font: inherit; color: inherit; }
+
+#root { min-height: 100dvh; }
+html.phone #root { height: 100dvh; }
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; overscroll-behavior: contain; }
