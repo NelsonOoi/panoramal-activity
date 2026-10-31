@@ -83,9 +83,9 @@ async function saveFrame(camId: string, t: number, jpeg: Buffer): Promise<string
 }
 
 // Everything after vision: entity ids, camera memory, layout learning, sightings, alerts.
-type FrameOpts = { guest: boolean; heartbeat?: boolean; tamper?: "covered" | "moved" }
+type FrameOpts = { guest: boolean; heartbeat?: boolean; tamper?: "covered" }
 
-const TAMPER_TEXT = { covered: "Camera covered or blurred", moved: "Camera moved" } as const
+const TAMPER_TEXT = { covered: "Camera covered or blurred" } as const
 
 // Stores one alert (debounced per camera per kind), tells Relay, optionally auto-investigates.
 async function raiseAlert(input: { camId: string; t: number; text: string; frameRef: string; kind: AlertKind }) {
@@ -104,7 +104,7 @@ async function processVision(camId: string, t: number, frameRef: string, vision:
     // Sidecar for the dashboard's frame dialog, which draws these boxes over the keyframe.
     const sidecar = `.${frameRef.replace(/\.jpg$/, ".json")}`
     bg("frame-sidecar", mkdir(sidecar.slice(0, sidecar.lastIndexOf("/")), { recursive: true }).then(() => writeFile(sidecar, JSON.stringify({ people }))))
-    const { camera, entries, exits, alerts } = await cam(camId).ingest(obs, { heartbeat: !!opts.heartbeat })
+    const { camera, entries, exits, alerts, warmingUp } = await cam(camId).ingest(obs, { heartbeat: !!opts.heartbeat })
     if (!opts.guest) {
         for (const e of exits) await s.recordExit(e)
         for (const e of entries) await s.recordEntry(e)
@@ -114,14 +114,14 @@ async function processVision(camId: string, t: number, frameRef: string, vision:
     await s.putCamera(camera) // broadcasts { type: "camera" }
     await publish({ type: "observation", camId, t, people: people.length, frameRef })
 
-    if (!opts.guest) {
-        if (obs.notable) await raiseAlert({ camId, t, text: obs.notable, frameRef, kind: "notable" })
+    if (!opts.guest && !warmingUp) {
+        if (opts.tamper) await raiseAlert({ camId, t, text: TAMPER_TEXT[opts.tamper], frameRef, kind: "tamper" })
         for (const a of alerts) await raiseAlert({ camId, t, text: a.text, frameRef, kind: a.kind })
+        if (obs.notable) await raiseAlert({ camId, t, text: obs.notable, frameRef, kind: "notable" })
     }
 }
 
 async function processFrame(camId: string, t: number, frameRef: string, jpeg: Buffer, opts: FrameOpts) {
-    if (opts.tamper && !opts.guest) await raiseAlert({ camId, t, text: TAMPER_TEXT[opts.tamper], frameRef, kind: "tamper" })
     const prev = opts.heartbeat ? lastVision.get(camId) : undefined
     if (prev) return processVision(camId, t, frameRef, prev, opts) // static scene: skip the LLM, keep everyone visible
     const known = await site().recentEntities(120_000, 10)
@@ -256,7 +256,7 @@ app.post("/api/ingest", jpegBody, route(async (req, res) => {
     const frameRef = await saveFrame(camId, t, jpeg)
     res.json({ ok: true })
     const heartbeat = req.query.hb === "1"
-    const tamper = req.query.tamper === "covered" || req.query.tamper === "moved" ? req.query.tamper : undefined
+    const tamper = req.query.tamper === "covered" ? "covered" : undefined // "moved" was removed (too noisy)
     enqueue(camId, () => processFrame(camId, t, frameRef, jpeg, { guest: false, heartbeat, tamper }))
 }))
 
@@ -265,12 +265,9 @@ app.post("/api/debug/observe", json, route(async (req, res) => {
     const { cam: camId, t = Date.now(), people = [], objects = [], notable = null, guest = false, heartbeat = false, tamper } = req.body ?? {}
     if (!camId) return res.status(400).json({ error: "need cam" })
     const frameRef = `/frames/${camId}/${t}.jpg`
-    const opts: FrameOpts = { guest, heartbeat, tamper: tamper === "covered" || tamper === "moved" ? tamper : undefined }
+    const opts: FrameOpts = { guest, heartbeat, tamper: tamper === "covered" ? "covered" : undefined }
     await new Promise<void>(resolve => {
-        const job = async () => {
-            if (opts.tamper && !guest) await raiseAlert({ camId, t, text: TAMPER_TEXT[opts.tamper], frameRef, kind: "tamper" })
-            await processVision(camId, t, frameRef, { people, objects, notable }, opts)
-        }
+        const job = () => processVision(camId, t, frameRef, { people, objects, notable }, opts)
         if (!enqueue(camId, () => job().finally(resolve))) resolve()
     })
     res.json({ ok: true })

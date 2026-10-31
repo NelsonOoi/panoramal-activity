@@ -1,7 +1,7 @@
 // Is the SiteActor alarm delivered at all? Uses a scratch SiteActor that no server tick touches.
 import { actors } from "../generated/index.js"
 const s = actors.SiteActor.get(`alarm-test-${Date.now()}`)
-const a = await s.createAlert({ camId: "x", t: Date.now() - 28_000, text: "alarm test", frameRef: "", kind: "notable" })
+const a = await s.createAlert({ camId: "x", t: Date.now() - 28_000, text: "alarm test", frameRef: "", kind: "object-gone" })
 console.log("created", a?.id, "escalateAt in", ((a!.escalateAt - Date.now()) / 1000).toFixed(1), "s")
 const d = await s.debugLayout(); console.log("alarm armed for", d.alarmAt ? ((d.alarmAt - d.now) / 1000).toFixed(1) + "s from now" : "NOTHING")
 for (let i = 0; i < 12; i++) {

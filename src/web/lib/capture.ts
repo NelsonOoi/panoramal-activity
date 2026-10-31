@@ -9,13 +9,11 @@ const HEARTBEAT_MS = 3000
 const SETTLE_FRAMES = 2 // full frames sent 1s apart after motion stops
 const MOTION_THRESHOLD = 6 // mean absolute grey difference (0–255) on a 32×24 thumbnail
 
-// Tamper detection on the same thumbnail (no extra cost).
+// Tamper detection on the same thumbnail (no extra cost). Only "covered": very dark or flat for 3 consecutive ticks (3s).
 const COVERED_MEAN = 20 // mean grey below this = lens covered / dark
 const COVERED_STD = 6 // std dev below this = blurred or covered (a flat image)
-const MOVED_JUMP = 45 // tick-to-tick mean difference that counts as a near-total change
-const MOVED_HOLD = 30 // …and the scene still differs this much from before the jump…
-const TAMPER_TICKS = 2 // …for this many ticks
-const TAMPER_DEBOUNCE_MS = 15_000 // per kind, on the phone
+const TAMPER_TICKS = 3
+const TAMPER_COOLDOWN_MS = 30_000
 
 export function tamperStats(g: Uint8ClampedArray): { mean: number; std: number } {
     let sum = 0
@@ -26,11 +24,6 @@ export function tamperStats(g: Uint8ClampedArray): { mean: number; std: number }
     return { mean, std: Math.sqrt(v / g.length) }
 }
 
-const meanDiff = (a: Uint8ClampedArray, b: Uint8ClampedArray) => {
-    let sum = 0
-    for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i])
-    return sum / a.length
-}
 
 // 5× GET /api/time; keep the fastest round trip. offset = serverT − midpoint.
 export async function syncClock(): Promise<{ offsetMs: number; errMs: number }> {
@@ -118,30 +111,16 @@ export function startCapture(opts: {
     let lastSentAt = 0
     let lastThumb: Uint8ClampedArray | null = null
     let settleLeft = 0
-    let prevTick: Uint8ClampedArray | null = null
     let coveredTicks = 0
-    let moveFrom: { base: Uint8ClampedArray; ticks: number } | null = null
-    const tamperSentAt: Record<string, number> = {}
+    let tamperSentAt = 0
 
-    // Returns "covered" / "moved" once a tamper condition has held for TAMPER_TICKS (debounced per kind).
-    const checkTamper = (g: Uint8ClampedArray, now: number): "covered" | "moved" | null => {
+    // "covered" once the thumbnail has been very dark or flat for TAMPER_TICKS ticks; then a 30s cooldown.
+    const checkTamper = (g: Uint8ClampedArray, now: number): "covered" | null => {
         const { mean, std } = tamperStats(g)
         coveredTicks = mean < COVERED_MEAN || std < COVERED_STD ? coveredTicks + 1 : 0
-        let kind: "covered" | "moved" | null = coveredTicks >= TAMPER_TICKS ? "covered" : null
-        if (!kind && prevTick) {
-            if (moveFrom) {
-                if (meanDiff(g, moveFrom.base) >= MOVED_HOLD) moveFrom.ticks++
-                else moveFrom = null // went back: it was a passer-by, not a move
-                if (moveFrom && moveFrom.ticks >= TAMPER_TICKS) {
-                    kind = "moved"
-                    moveFrom = null
-                }
-            } else if (meanDiff(g, prevTick) >= MOVED_JUMP) moveFrom = { base: prevTick, ticks: 0 }
-        }
-        prevTick = g
-        if (!kind || now - (tamperSentAt[kind] ?? 0) < TAMPER_DEBOUNCE_MS) return null
-        tamperSentAt[kind] = now
-        return kind
+        if (coveredTicks < TAMPER_TICKS || now - tamperSentAt < TAMPER_COOLDOWN_MS) return null
+        tamperSentAt = now
+        return "covered"
     }
 
     const thumb = document.createElement("canvas")

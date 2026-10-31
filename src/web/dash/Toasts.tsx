@@ -63,8 +63,11 @@ function Shell({ done, icon, children }: { done?: boolean; icon: React.ReactNode
     )
 }
 
+// escalateAt === 0 marks a notify-only alert (crowd, model-flagged notable): no countdown, never escalates.
+const notifyOnly = (a: Alert) => !a.escalateAt
+
 function statusText(a: Alert): string | null {
-    if (a.status === "acknowledged") return "Acknowledged · escalation cancelled"
+    if (a.status === "acknowledged") return notifyOnly(a) ? "Acknowledged" : "Acknowledged · escalation cancelled"
     if (a.status === "investigating") return `Investigating${a.incId ? ` · ${a.incId}` : ""}`
     if (a.status === "escalated") return "Escalated: no response in 30s. Investigation started."
     return null
@@ -92,8 +95,10 @@ function AlertToast({ a, onAck, onInvestigate, onDismiss }: { a: Alert; onAck: (
                 </span>
             </div>
             <div className="mt-1.5 font-medium">{a.text}</div>
-            <div className="text-xs text-muted-fg">{done ?? (leftMs > 0 ? `Auto-investigates in ${Math.ceil(leftMs / 1000)}s` : "Escalating…")}</div>
-            {!done && (
+            <div className="text-xs text-muted-fg">
+                {done ?? (notifyOnly(a) ? "Notification only" : leftMs > 0 ? `Auto-investigates in ${Math.ceil(leftMs / 1000)}s` : "Escalating…")}
+            </div>
+            {!done && !notifyOnly(a) && (
                 <div className="mt-2.5 h-0.5 overflow-hidden rounded-sm bg-muted">
                     <i className="block h-full origin-left bg-muted-fg transition-transform duration-200 ease-linear" style={{ transform: `scaleX(${leftMs / total})` }} />
                 </div>
@@ -126,7 +131,15 @@ function AlertToast({ a, onAck, onInvestigate, onDismiss }: { a: Alert; onAck: (
                         </Button>
                     </>
                 )}
-                <CloseButton small label="Dismiss" onClick={() => onDismiss(a.id)} />
+                <CloseButton
+                    small
+                    label="Dismiss"
+                    onClick={() => {
+                        // A notify-only alert stays "raised" on the server until acknowledged, so dismissing acknowledges it.
+                        if (!done && notifyOnly(a) && sent === null) onAck(a)
+                        onDismiss(a.id)
+                    }}
+                />
             </div>
         </Shell>
     )

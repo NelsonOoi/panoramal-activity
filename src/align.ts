@@ -1,35 +1,9 @@
 // Guest clip alignment: match what the guest saw with what fixed cameras saw.
 import { actors } from "../generated/index.js"
 import type { Observation } from "./shared/types.js"
+import { normWords } from "./words.js"
 
-const STOP = new Set(["the", "and", "with", "from", "into", "onto", "their", "his", "her", "person", "someone", "near", "towards", "toward", "standing", "walking", "looking", "yellow", "red", "blue", "black", "white", "green"])
-
-// Synonyms → one token, so "tote" matches "bag" and "left" matches "exits".
-const SYN: Record<string, string> = {}
-for (const [token, list] of Object.entries({
-    bag: "bag tote backpack purse handbag satchel",
-    phone: "phone mobile",
-    laptop: "laptop computer",
-    leave: "leave leaves left exit exits"
-})) for (const w of list.split(" ")) SYN[w] = token
-
-// Crude stemmer: picks/picked/picking → pick.
-function stem(w: string): string {
-    if (w.length > 5 && w.endsWith("ing")) return w.slice(0, -3)
-    if (w.length > 4 && w.endsWith("ed")) return w.slice(0, -2)
-    if (w.length > 4 && w.endsWith("es")) return w.slice(0, -2)
-    if (w.length > 3 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1)
-    return w
-}
-
-export function normWords(text: string): string[] {
-    return text
-        .toLowerCase()
-        .split(/[^a-z]+/)
-        .filter(w => w.length >= 3 && !STOP.has(w))
-        .map(w => SYN[w] ?? SYN[stem(w)] ?? stem(w))
-        .filter(w => w.length >= 3 && !STOP.has(w))
-}
+export { normWords }
 
 // Event words (notable + actions) weigh 1; object labels weigh 0.5 (objects sit in many frames, events in few).
 function words(o: Observation): Map<string, number> {

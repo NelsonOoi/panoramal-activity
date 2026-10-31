@@ -10,7 +10,7 @@ type DashMeta = { role: "dashboard" }
 
 const MATCH_WINDOW_MS = 20_000
 const BLIND_SPOT_AFTER_MS = 20_000
-const ALERT_DEBOUNCE_MS = 10_000
+const ALERT_DEBOUNCE_MS = 20_000 // max one alert per camera per 20s (see createAlert for the one exception)
 const MAX_SIGHTINGS = 2000
 const CROWD_WINDOW_MS = 2_000 // 2+ entities exiting one camera within this → ignore those exits
 const BLIND_SPOT_MIN_EXITS = 3 // unmatched exits on one edge before it is reported as a blind spot
@@ -47,6 +47,8 @@ function nextAlarm(pending: EdgeEvent[], alerts: Alert[] = []): number | null {
 }
 
 const ESCALATE_AFTER_MS = 30_000
+// Only these kinds count down and escalate; the rest (crowd, notable) are notify-only with escalateAt = 0.
+const ESCALATING = new Set<Alert["kind"]>(["object-gone", "object-left", "tamper"])
 
 function normAlert(a: Alert): Alert {
     // Records from before alert lifecycles existed: treat as notable and settled.
@@ -389,7 +391,11 @@ export class SiteActor extends Actor<DashMeta, never, DashEvent> {
     // and returns it; null when debounced (one per camera per kind per 10s). Assigns "al-N".
     async createAlert(input: Pick<Alert, "camId" | "t" | "text" | "frameRef"> & { kind?: Alert["kind"]; id?: string }): Promise<Alert | null> {
         const kind = input.kind ?? "notable"
-        if (this.alerts.some(a => a.camId === input.camId && (a.kind ?? "notable") === kind && Math.abs(a.t - input.t) < ALERT_DEBOUNCE_MS)) return null
+        const escalates = ESCALATING.has(kind)
+        // At most one alert per camera per 20s across kinds. Exception: an escalating alert (e.g. object-gone) is
+        // not blocked by notify-only ones (the model's "picks up the tote" toast must not hide "tote is gone").
+        const recent = this.alerts.filter(a => a.camId === input.camId && Math.abs(a.t - input.t) < ALERT_DEBOUNCE_MS)
+        if (recent.some(a => !escalates || ESCALATING.has(a.kind ?? "notable"))) return null
         let id = input.id
         if (!id) {
             this.seq = { ...this.seq, alert: this.seq.alert + 1 }
@@ -398,7 +404,8 @@ export class SiteActor extends Actor<DashMeta, never, DashEvent> {
         const now = Date.now()
         const stored: Alert = {
             id, camId: input.camId, t: input.t, text: input.text, frameRef: input.frameRef, kind,
-            status: "raised", escalateAt: input.t + ESCALATE_AFTER_MS, history: [{ status: "raised", at: now }]
+            // escalateAt 0 = notify only: no countdown, never escalates (crowd, notable)
+            status: "raised", escalateAt: escalates ? input.t + ESCALATE_AFTER_MS : 0, history: [{ status: "raised", at: now }]
         }
         this.alerts = [stored, ...this.alerts].slice(0, 20)
         this.broadcast({ type: "alert", alert: stored })

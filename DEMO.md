@@ -22,7 +22,7 @@ Solo fallback: Presenter is also the Walker; skip the Plant and use the dashboar
 - **Below the grid:** **Learned handoffs** (rows like "cam-1 → cam-3 · 3.2s avg · 2 seen", built from people walking between cameras), the **Add camera / Scan with a phone** QR, and the **Saw something? / Add your footage** QR for the Plant.
 - **Camera view** (click a tile): the latest frame large, with boxes and labels; **In view now**; **Objects**; a **Recent log** (newest first, where unchanged stretches collapse to one line: "A · picking up bag · 14:22:43–14:23:43 · 19 frames"); and **Ask this camera** with an **Ask** button. It answers from its own memory in about 2s, **even when it's offline**. It only remembers the last 10 minutes. If it fails, you'll see "Camera couldn't answer" with **Retry**.
 - **What just happened?** is one click and covers the last 60s. **New incident** opens a dialog with a question, **Last 1 min / Last 5 min / Last 15 min / Custom**, and cameras (all checked), with **Cancel** and **Start investigation**. It always starts a fresh case.
-- **Alerts** (toasts, bottom-left) for big changes, each with a type badge: **Object gone** ("Yellow tote is gone from the table"), **Object left** ("Backpack left unattended"), **Crowd change** ("4 people arrived"), **Camera tampered** ("Camera covered or blurred", "Camera moved") or **Notable**. Each counts down **"Auto-investigates in 30s"**, then shows **"Escalating…"**, with **Acknowledge** and **Investigate** buttons. Afterwards it reads **"Acknowledged · escalation cancelled"**, **"Investigating · inc-N"**, or, **if nobody responded in 30s and the alert's Terse alarm fired by itself**, **"Escalated: no response in 30s. Investigation started."**
+- **Alerts** (toasts, bottom-left) for big changes, each with a type badge: **Object gone** ("Yellow tote is gone from the table"), **Object left** ("Backpack left unattended"), **Crowd change** ("4 people arrived"), **Camera tampered** ("Camera covered or blurred": the lens dark or flat for 3s) or **Notable** (the model's own remark, e.g. "picks up the yellow tote"). **Only Object gone, Object left and Camera tampered escalate:** they count down **"Auto-investigates in 30s"**, then show **"Escalating…"**. **Crowd change** and **Notable** are **"Notification only"**: no countdown, and dismissing them acknowledges them. All alerts have **Acknowledge** and **Investigate** buttons. Each camera raises at most one alert per 20s (an escalating alert can still follow a notification-only one), and **a newly connected camera raises no alerts for its first 60s**. Afterwards it reads **"Acknowledged · escalation cancelled"**, **"Investigating · inc-N"**, or, **if nobody responded in 30s and the alert's Terse alarm fired by itself**, **"Escalated: no response in 30s. Investigation started."**
 - **Knock toast:** "guest-xxxx wants to add footage" with **Deny** / **Approve**, then "… was approved · clip added to the case".
 - **Relay** card ("Messages between agents", footer "via Agent Relay"): questions, threaded testimony, cross-examination.
 - **Case file:** a status badge (**Gathering** → **Analysing** → **Complete**), "Searching memory…" while witnesses answer, the timeline with citation chips and **Revised** items, **Contradiction resolved**, and a **Verdict** panel with "Revision N". There's also a **storyboard per person**: thumbnails cam → cam, a dashed **"unseen 5.2s"** connector for a gap *between* two sightings, and a final **"not seen again"** when nobody saw them afterwards.
@@ -58,9 +58,9 @@ Solo fallback: Presenter is also the Walker; skip the Plant and use the dashboar
 
 ## Outfit and props
 
-- **Walker:** a **dark navy jacket** in a solid colour, plus one more distinctive item (a bright beanie or red backpack) so re-identification is easy.
+- **Walker:** a **dark navy jacket** in a solid colour, plus one more distinctive item (a bright beanie, **not** a backpack: a backpack counts as a valuable to the alert system) so re-identification is easy.
 - **Contradiction setup:** put the table between cam-2 and a light source. In cam-3, which is backlit or in shadow, the navy jacket should read as **black**. Check this by clicking cam-2's and cam-3's tiles: the camera view shows each one's description of the Walker. Or type "What colour is the jacket?" into **Ask this camera**. If both cameras agree, move cam-3 into the shadow or dim the light on its side.
-- **Bag:** an obvious, ordinary **bag** in a strong single colour (yellow or orange), on the table, clearly visible to cam-2 *and* cam-3. Bag, tote, backpack, purse and handbag are now all treated as the same word when the guest clip is matched, so the label doesn't matter. What matters is that the **pickup is clearly visible** to the table cameras *and* in the guest's clip (alignment found the offset to ±1s in testing). It must be a **portable object**: scenery like the table, door, chair or screen never triggers Object gone.
+- **Bag:** an obvious, ordinary **bag** in a strong single colour (yellow or orange), on the table, clearly visible to cam-2 *and* cam-3. Bag, tote, backpack, purse and handbag are now all treated as the same word when the guest clip is matched, so the label doesn't matter. What matters is that the **pickup is clearly visible** to the table cameras *and* in the guest's clip (alignment found the offset to ±1s in testing). It must be a **valuable**: only a bag, tote, backpack, purse, suitcase, laptop, box/package or helmet can trigger Object gone or Object left. Never use a phone, bottle, cup or keyboard. **Keep every other valuable out of the cameras' view**, including the presenting laptop and people's bags on nearby seats, or moving one will raise its own alert.
 - **Nobody else** in a navy or black jacket walks through the cameras during the demo. Ask the front row.
 
 ## Timings the system needs
@@ -75,9 +75,10 @@ These come from the actor alarms. Rehearse to them.
 | Blind spot | 3 unmatched exits on one edge | Not used live. Don't wait for it. |
 | Testimony deadline | 10s | A silent camera won't stall the investigation. |
 | Manual window | The last 60s | If you use the button or `i`, press it within 60s of the grab. |
-| Auto alert | Once per camera per 10s | Pick the bag up in **one clear motion**, facing cam-2/cam-3. |
-| **Object gone** | The bag absent for 3 frames, plus vision time: **about 3.5–4s after the bag leaves the frame** (measured at 2.7s in simulation, plus about 1s of real-phone vision time) | The countdown starts when the bag is **out of cam-2's and cam-3's view**, not when it's picked up. While the Walker is in frame holding it, it still counts as present. **Grab and go.** |
-| Alert escalation | 30s with no Acknowledge/Investigate | **Any** alert you ignore opens an incident by itself. Stray ones ("4 people arrived", "Camera moved") must be **Acknowledged** at once. |
+| Alert warm-up | No alerts from a camera for its first **60s** after it connects | Phones must be connected **at least 2 minutes before** going on stage. Re-plugging a phone restarts its warm-up. |
+| Alert cap | One alert per camera per 20s | Pick the bag up in **one clear motion**, facing cam-2/cam-3. |
+| **Object gone** | The bag absent for 3 frames, plus vision time: **about 3.5s after the Walker carries it out of the frame** (measured at 2.5s in simulation, plus about 1s of real-phone vision time) | The countdown starts when the bag is **out of cam-2's and cam-3's view**, not when it's picked up. While the Walker is in frame holding it, or standing where it was, it counts as hidden, not gone. **Grab and go.** |
+| Alert escalation | 30s with no Acknowledge/Investigate | Only **Object gone**, **Object left** and **Camera tampered** escalate. If one of those appears by accident (someone moves a bag, or a hand covers a lens), **Acknowledge** it at once. Crowd change and Notable are notification-only and harmless. |
 | Incident window (alert) | 30s before to 15s after the alert | The whole theft (walk in → grab → out the blind exit) must fit in about 30s. |
 
 ### Measured investigation timings (from integration)
@@ -126,11 +127,11 @@ The Walker comes in through the entrance, walks to the table, **picks the bag up
 
 ### 0:45 It triggers itself
 
-Bottom-left, an **Object gone** alert should appear: **"Yellow tote is gone from the table"** (it'll say whatever the cameras call the bag), counting down from **"Auto-investigates in 30s"**.
+Bottom-left, a **Notable** toast ("picks up the yellow tote", marked **"Notification only"**) may appear first. **Don't click it.** About 3.5s after the Walker leaves the frame, the **Object gone** alert appears: **"Yellow tote is gone from the table (last held by A)"** (it'll say whatever the cameras call the bag), counting down from **"Auto-investigates in 30s"**.
 
 > **"We didn't press anything. The cameras noticed the bag is gone. And if nobody here reacts within 30 seconds, it doesn't wait: it opens the case itself and escalates."**
 
-**Two toasts?** A **Notable** one ("picks up bag") may appear first, and then **Object gone**. Click **Investigate** on the **first** one that appears; if both are showing, pick **Object gone**. Both alerts join the **same** case either way: the other one switches to **"Investigating · inc-N"** with the same case number and stops counting down.
+**Click Investigate on the Object gone toast**, the one with the countdown. (If you click the Notable one by mistake, that's fine: both join the **same** case, and the other switches to **"Investigating · inc-N"**.)
 
 Click **Investigate** by **0:46**. Don't let it escalate on stage: that costs 30s the script doesn't have. The clock starts here: the verdict lands about 22s later.
 
@@ -238,7 +239,7 @@ Mid-demo, if a live step hangs for more than 15s, say *"let me show you the run 
 
 **Between rehearsals**
 - [ ] **Shift+R** on `/dash` (soft reset): cameras stay; handoffs, blind spots, people, alerts, knocks and incidents clear. No phone reload needed.
-- [ ] Plug cam-1 back in if you unplugged it, and check its tile is live again.
+- [ ] Plug cam-1 back in if you unplugged it, and check its tile is live again. Its 60s alert warm-up restarts, which doesn't matter for cam-1, the entrance camera, since the bag alerts come from cam-2 and cam-3.
 - [ ] To test a quick follow-up without resetting, use **New incident**: it always opens a fresh case.
 
 **2 minutes before**
@@ -246,7 +247,8 @@ Mid-demo, if a live step hangs for more than 15s, say *"let me show you the run 
 - [ ] Bag back on the table, facing the cameras
 - [ ] The Plant's phone has `/witness` **already open** (scanned during setup), the camera app ready to record, and the screen unlocked
 - [ ] Relay's own web UI is closed on the presenting laptop
-- [ ] No alert toasts showing. During the demo, **Acknowledge any stray alert immediately** (crowd change, camera moved), or it opens a case by itself in 30s.
+- [ ] No alert toasts showing. During the demo, **Acknowledge any stray countdown alert immediately** (Object gone, Object left or Camera tampered), or it opens a case by itself in 30s. Notification-only toasts can be ignored.
+- [ ] All phones connected **at least 2 minutes ago** (60s alert warm-up). Don't re-plug or reload a phone after this point.
 - [ ] `/dash` full-screen on the projector at projector resolution; the browser zoom makes the cards readable from the back
 - [ ] Walker at the entrance, out of every camera's view, and knows where cam-1's cable is for the 1:15 unplug cue
 - [ ] Header reads "3 of 3 cameras live" (cam-1 plugged back in after the last rehearsal)

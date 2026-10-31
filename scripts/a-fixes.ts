@@ -2,6 +2,7 @@
 //  1. object-gone delay in a still room (exit frame → 2 settle frames → heartbeats), and with heartbeats only
 //  2. two alerts 2s apart → investigate one → both investigating, same incId → no escalation after 30s
 //  3. guest alignment with synonyms/stemming ("picks up bag" vs "picked up the yellow tote")
+import { actors } from "../generated/index.js"
 import { alignOffset, matchScore, normWords } from "../src/align.js"
 import type { Alert, Observation } from "../src/shared/types.js"
 
@@ -16,6 +17,8 @@ const checks: [string, boolean, unknown?][] = []
 await post("/api/site/wipe")
 const c1 = (await post("/api/cameras")).id
 const c2 = (await post("/api/cameras")).id
+const c3 = (await post("/api/cameras")).id
+for (const c of [c1, c2, c3]) await actors.CameraActor.get(c).skipWarmup() // tests don't wait out the 60s warm-up
 const { websocketUrl } = await post("/api/socket/site")
 const ws = new WebSocket(websocketUrl)
 const alerts = new Map<string, Alert & { seenAt: number }>()
@@ -32,7 +35,7 @@ const tote = (x = 0.5) => ({ label: "yellow tote", x, y: 0.62 })
 const table = { label: "table", x: 0.52, y: 0.7 }
 
 // ---- 1a: cam-1 with settle frames (what capture.ts now sends)
-for (let i = 0; i < 4; i++) { await obs(c1, [walker(0.3 + i * 0.1)], [tote(0.3 + i * 0.1), table]); await sleep(1000) }
+for (let i = 0; i < 6; i++) { await obs(c1, [walker(0.2 + i * 0.1)], [tote(0.2 + i * 0.1), table]); await sleep(1000) }
 const tExit1 = Date.now()
 await obs(c1, [], [table]); await sleep(1000)                // motion frame: walker + tote out of frame
 await obs(c1, [], [table]); await sleep(1000)                // settle 1
@@ -40,7 +43,7 @@ await obs(c1, [], [table]); await sleep(1000)                // settle 2
 await obs(c1, [], [table], { heartbeat: true })              // heartbeat (+3s)
 await sleep(500)
 // ---- 1b: cam-2 heartbeats only (old phone build: no settle frames)
-for (let i = 0; i < 4; i++) { await obs(c2, [walker(0.3 + i * 0.1)], [{ label: "laptop", x: 0.5, y: 0.5 }, table]); await sleep(1000) }
+for (let i = 0; i < 6; i++) { await obs(c2, [walker(0.2 + i * 0.1)], [{ label: "laptop", x: 0.5, y: 0.5 }, table]); await sleep(1000) }
 const tExit2 = Date.now()
 await obs(c2, [], [table]); await sleep(3000)
 await obs(c2, [], [table], { heartbeat: true }); await sleep(3000)
@@ -75,9 +78,9 @@ checks.push(["align: guest offset ≈ +7000ms", Math.abs(al.offsetMs - 7000) < 5
 for (const a of alerts.values()) if (a.status === "raised") await post(`/api/alerts/${a.id}/ack`)
 
 // ---- 2: two alerts 2s apart, investigate one
-await obs(c2, [walker(0.5)], [table], { notable: "person waves at the camera" })
+await obs(c3, [walker(0.5)], [table], { notable: "person waves at the camera" })
 await sleep(2000)
-await obs(c2, [walker(0.5)], [table], { tamper: "covered", heartbeat: true })
+await obs(c3, [walker(0.5)], [table], { tamper: "covered", heartbeat: true })
 await sleep(500)
 const fresh = [...alerts.values()].filter(a => a.status === "raised")
 const [first, second] = fresh.sort((a, b) => a.t - b.t)
